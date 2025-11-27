@@ -78,6 +78,10 @@ body {
   color: var(--text-primary);
 }
 
+.nav-link:hover {
+  color: var(--text-primary);
+}
+
 textarea:focus {
   border-color: var(--accent-color) !important;
 }
@@ -104,4 +108,249 @@ textarea:focus {
   .stat-card-value {
     font-size: 2rem !important;
   }
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+.mascot-container {
+  position: fixed;
+  bottom: 3rem;
+  right: 2rem;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.mascot {
+  position: relative;
+  width: 150px;
+  height: auto;
+  cursor: pointer;
+  animation: float 6s ease-in-out infinite;
+  opacity: 0.9;
+  transition: opacity 0.3s, transform 0.2s;
+}
+
+.mascot:active {
+  transform: scale(0.95);
+}
+
+.mascot:hover {
+  opacity: 1;
+}
+
+.speech-bubble {
+  position: absolute;
+  bottom: 100%;
+  /* Position above the mascot */
+  right: 20px;
+  width: 280px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  z-index: 51;
+  margin-bottom: 10px;
+  /* Space between bubble and mascot */
+}
+
+/* Triangle for speech bubble */
+.speech-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  right: 40px;
+  border-width: 10px 10px 0;
+  border-style: solid;
+  border-color: var(--card-bg) transparent transparent transparent;
+  z-index: 1;
+}
+
+.speech-bubble::before {
+  content: '';
+  position: absolute;
+  bottom: -11px;
+  right: 40px;
+  border-width: 10px 10px 0;
+  border-style: solid;
+  border-color: var(--border-color) transparent transparent transparent;
+  z-index: 0;
+}
+
+.close-bubble {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.close-bubble:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .mascot-container {
+    right: 1rem;
+  }
+
+  .mascot {
+    width: 100px;
+  }
+
+  .speech-bubble {
+    width: 240px;
+    right: 0;
+  }
+}
+
+/* Header Animation Styles */
+.logo-text {
+  display: flex;
+  align-items: baseline;
+  white-space: nowrap;
+}
+
+.logo-static {
+  transition: color 0.3s ease;
+}
+
+.anim-part {
+  display: inline-flex;
+  overflow: hidden;
+  max-width: 0;
+  opacity: 0;
+  transition: max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+  vertical-align: bottom;
+}
+
+.anim-part.visible {
+  max-width: 150px;
+  /* Sufficient width for 'acter' */
+  opacity: 1;
+}
+
+.anim-content {
+  display: inline-block;
+  animation: slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Page Load Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-in {
+  opacity: 0;
+  /* Start hidden */
+  animation: fadeInUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.delay-100 {
+  animation-delay: 0.1s;
+}
+
+.delay-200 {
+  animation-delay: 0.2s;
+}
+
+.delay-300 {
+  animation-delay: 0.3s;
+}
+
+.delay-400 {
+  animation-delay: 0.4s;
+}
+
+.delay-500 {
+  animation-delay: 0.5s;
+}
+
+/* Popup Text Animation */
+@keyframes popupFadeOut {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.5);
+  }
+
+  20% {
+    opacity: 1;
+    transform: translate(-50%, -20px) scale(1.2);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50px) scale(1);
+  }
+}
+
+.popup-text {
+  position: absolute;
+  color: var(--accent-color);
+  font-weight: bold;
+  font-size: 1.2rem;
+  pointer-events: none;
+  white-space: nowrap;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  animation: popupFadeOut 1.2s ease-out forwards;
+  z-index: 60;
+  left: 50%;
+  bottom: 100px;
+  /* Adjust based on mascot height */
 }
