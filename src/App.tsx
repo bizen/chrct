@@ -175,12 +175,14 @@ function App() {
     const file = new File([shareImageBlob], 'chrct-stats.png', { type: 'image/png' });
 
     // Check if sharing is supported and if the file can be shared
-    const canShare = navigator.share &&
-      (typeof navigator.canShare === 'function' ? navigator.canShare({ files: [file] }) : false);
+    // Cast to any to avoid TS warning about "always defined"
+    const nav = navigator as any;
+    const canShare = nav.share &&
+      (typeof nav.canShare === 'function' ? nav.canShare({ files: [file] }) : false);
 
     if (canShare) {
       try {
-        await navigator.share({
+        await nav.share({
           files: [file],
           title: 'My Writing Progress on chrct',
           text: `I wrote ${stats.characters} characters today! #chrct #writing`,
@@ -544,7 +546,7 @@ function App() {
                 Download
               </button>
 
-              {navigator.share && (
+              {(navigator as any).share && (
                 <button
                   onClick={handleNativeShare}
                   style={{
