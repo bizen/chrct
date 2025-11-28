@@ -73,7 +73,7 @@ function App() {
 
   // Header text rotation logic
   useEffect(() => {
-    let interval: number | undefined;
+    let interval: ReturnType<typeof setInterval> | undefined;
     if (isHeaderHovered) {
       setHeaderPrefix('chiruno');
       interval = setInterval(() => {
@@ -173,7 +173,7 @@ function App() {
     if (!shareImageBlob) return;
     const file = new File([shareImageBlob], 'chrct-stats.png', { type: 'image/png' });
 
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    if (navigator.share && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({
           files: [file],

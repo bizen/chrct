@@ -1,10 +1,5 @@
 import { useState, useEffect } from 'react';
 
-interface StreakState {
-    currentStreak: number;
-    lastContributionDate: string | null;
-}
-
 export const useStreak = (characterCount: number) => {
     const [streak, setStreak] = useState<number>(0);
     const [isCompletedToday, setIsCompletedToday] = useState<boolean>(false);
