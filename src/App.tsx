@@ -25,7 +25,7 @@ function App() {
 
   const { streak, isCompletedToday, dailyProgress } = useStreak(stats.characters);
 
-  const [theme, setTheme] = useState<'dark' | 'light' | 'wallpaper'>('wallpaper');
+  const [theme, setTheme] = useState<'dark' | 'light' | 'wallpaper'>('dark');
   const [isAboutOpen, setIsAboutOpen] = useState(false);
 
   // Header interaction states
@@ -56,9 +56,9 @@ function App() {
 
   const toggleTheme = () => {
     setTheme(prev => {
+      if (prev === 'dark') return 'wallpaper';
       if (prev === 'wallpaper') return 'light';
-      if (prev === 'light') return 'dark';
-      return 'wallpaper';
+      return 'dark';
     });
   };
 
