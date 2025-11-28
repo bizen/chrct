@@ -3,6 +3,7 @@ import { Sparkles, Copy, Trash2, Sun, Moon, X, Image as ImageIcon, FileText, Pri
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
 import html2canvas from 'html2canvas';
+import { Analytics } from '@vercel/analytics/react';
 import cirnoImg from './assets/cirno.png';
 import bgImg from './assets/cirno-daiyosei-landscape.jpeg';
 import shareBgImg from './assets/sharecard_landscape.png';
@@ -173,7 +174,11 @@ function App() {
     if (!shareImageBlob) return;
     const file = new File([shareImageBlob], 'chrct-stats.png', { type: 'image/png' });
 
-    if (navigator.share && navigator.canShare({ files: [file] })) {
+    // Check if sharing is supported and if the file can be shared
+    const canShare = navigator.share &&
+      (typeof navigator.canShare === 'function' ? navigator.canShare({ files: [file] }) : false);
+
+    if (canShare) {
       try {
         await navigator.share({
           files: [file],
@@ -188,6 +193,7 @@ function App() {
 
   return (
     <>
+      <Analytics />
       {/* Hidden Share Card for Capture */}
       <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
         <div
