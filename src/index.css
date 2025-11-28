@@ -354,3 +354,117 @@ textarea:focus {
   bottom: 100px;
   /* Adjust based on mascot height */
 }
+
+.wallpaper-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  overflow: hidden;
+  transition: opacity 0.5s ease-in-out;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.wallpaper-container.visible {
+  opacity: 1;
+}
+
+@media print {
+  @page {
+    margin: 0;
+  }
+
+  /* Hide unnecessary elements */
+  header,
+  footer,
+  .mascot-container,
+  .wallpaper-container,
+  .stat-card,
+  .delay-100 {
+    display: none !important;
+  }
+
+  /* Reset layout for printing */
+  body,
+  #root,
+  main {
+    background: white !important;
+    color: black !important;
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+    padding: 0 !important;
+    margin: 2cm !important;
+    /* Add margin back since @page margin is 0 */
+  }
+
+  /* Style the text area content */
+  textarea {
+    border: none !important;
+    box-shadow: none !important;
+    resize: none !important;
+    background: transparent !important;
+    color: black !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    font-family: "Times New Roman", Times, serif;
+    font-size: 12pt !important;
+    line-height: 1.5 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    white-space: pre-wrap !important;
+  }
+
+  /* Hide stats grid container explicitly if class not enough */
+  main>div:nth-child(2) {
+    display: none !important;
+  }
+}
+
+@keyframes pulse-cyan {
+  0% {
+    box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px rgba(96, 165, 250, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(96, 165, 250, 0);
+  }
+}
+
+.streak-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.streak-badge.completed {
+  background: rgba(96, 165, 250, 0.1);
+  border-color: rgba(96, 165, 250, 0.3);
+  color: #60A5FA;
+  animation: pulse-cyan 2s infinite;
+}
+
+.streak-icon {
+  transition: transform 0.3s ease;
+}
+
+.streak-badge.completed .streak-icon {
+  transform: scale(1.2);
+}
