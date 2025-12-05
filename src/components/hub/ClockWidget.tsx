@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 export function ClockWidget({ theme }: { theme: 'dark' | 'light' | 'wallpaper' }) {
     const [date, setDate] = useState(new Date());

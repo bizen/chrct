@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 export function TaskCommitWidget({ theme }: { theme: 'dark' | 'light' | 'wallpaper' }) {
     const [history, setHistory] = useState<Record<string, number>>({});

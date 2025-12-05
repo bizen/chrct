@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Timer, Play, Pause, RotateCcw } from 'lucide-react';
 
 export function PomodoroWidget({ theme }: { theme: 'dark' | 'light' | 'wallpaper' }) {

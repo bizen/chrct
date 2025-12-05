@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Check, Trash2 } from 'lucide-react';
 
 interface Task {

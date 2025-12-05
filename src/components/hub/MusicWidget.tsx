@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Music, Play } from 'lucide-react';
 
 export function MusicWidget({ theme, isMusicPlaying, toggleMusic }: { theme: 'dark' | 'light' | 'wallpaper'; isMusicPlaying: boolean; toggleMusic: () => void }) {

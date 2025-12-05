@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Image as ImageIcon, Moon, Sun } from 'lucide-react';
 
 export function ThemeWidget({ theme, setTheme }: { theme: 'dark' | 'light' | 'wallpaper'; setTheme: (t: 'dark' | 'light' | 'wallpaper') => void }) {
