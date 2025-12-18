@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Bookmark } from 'lucide-react';
+import { X } from 'lucide-react';
 import { PerplexityWidget } from './hub/PerplexityWidget';
 import { BookmarkWidget } from './hub/BookmarkWidget';
 
@@ -72,7 +72,7 @@ export function RightHubSidebar({
                 }}>
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    
+
 
                     {/* Optional Close Button - might be redundant if the main toggle controls both, but good to have */}
                     <button

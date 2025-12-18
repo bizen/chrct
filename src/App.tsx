@@ -1,20 +1,29 @@
 import { useState, useEffect, useRef } from 'react';
-import { Sparkles, Copy, Trash2, X, FileText, Printer, Share2, Download, Snowflake, LayoutGrid } from 'lucide-react';
+import { Sparkles, Copy, Trash2, FileText, Printer, Share2, Snowflake, LayoutGrid } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
 import html2canvas from 'html2canvas';
+
 import { Analytics } from '@vercel/analytics/react';
-import cirnoImg from './assets/cirno.png';
+
+// Assets
 import bgImg from './assets/cirno-daiyosei-landscape.jpeg';
 import shareBgImg from './assets/sharecard_landscape.png';
 import chirunoMp3 from './assets/chiruno.mp3';
-import { playTypeSound } from './utils/sound';
-import { useStreak } from './hooks/useStreak';
+
+// Components
 import { HubSidebar } from './components/HubSidebar';
 import { RightHubSidebar } from './components/RightHubSidebar';
 import { CharacterCountView } from './components/views/CharacterCountView';
 import { TaskListView } from './components/views/TaskListView';
+import { CreditModal } from './components/CreditModal';
+import { ShareModal } from './components/ShareModal';
+import { Mascot } from './components/Mascot';
 import { RefreshCw } from 'lucide-react';
+
+// Utils / Hooks
+import { playTypeSound } from './utils/sound';
+import { useStreak } from './hooks/useStreak';
 
 function App() {
   const [text, setText] = useState(() => {
@@ -260,6 +269,9 @@ function App() {
       setIsHubOpen(false);
     }
   };
+
+  const canShare = (navigator as any).share &&
+    (typeof (navigator as any).canShare === 'function' ? (navigator as any).canShare({ files: [new File([], 'test.png')] }) : false) || false;
 
   return (
     <div style={{ display: 'flex', width: '100%', minHeight: '100vh', overflow: 'hidden' }}>
@@ -585,213 +597,18 @@ function App() {
             </div>
           </footer>
 
-          <div className="mascot-container animate-in delay-500">
-            {popups.map(popup => (
-              <div
-                key={popup.id}
-                className="popup-text"
-                style={{ transform: `translateX(calc(-50% + ${popup.xOffset}px))` }}
-              >
-                {popup.text}
-              </div>
-            ))}
-            {isAboutOpen && (
-              <div className="speech-bubble">
-                <button
-                  onClick={() => setIsAboutOpen(false)}
-                  className="close-bubble"
-                >
-                  <X size={16} />
-                </button>
-                <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>チルノカウントについて</h3>
-                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  あたいが文字数をかぞえるよ！<br />Let me count the words for you!
-                </p>
-              </div>
-            )}
-            <img
-              src={cirnoImg}
-              alt="Cirno"
-              className="mascot"
-              onClick={() => setIsAboutOpen(!isAboutOpen)}
-            />
-          </div>
+          <Mascot popups={popups} isAboutOpen={isAboutOpen} onToggleAbout={() => setIsAboutOpen(!isAboutOpen)} />
 
-          {/* Share Modal */}
-          {isShareModalOpen && shareImageBlob && (
-            <div
-              style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                zIndex: 1000,
-                backdropFilter: 'blur(5px)',
-              }}
-              onClick={() => setIsShareModalOpen(false)}
-              className="animate-in"
-            >
-              <div
-                style={{
-                  backgroundColor: 'var(--card-bg)',
-                  padding: '2rem',
-                  borderRadius: '16px',
-                  maxWidth: '90%',
-                  maxHeight: '90%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '1.5rem',
-                  position: 'relative',
-                  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-                  border: '1px solid var(--border-color)',
-                }}
-                onClick={e => e.stopPropagation()}
-              >
-                <button
-                  onClick={() => setIsShareModalOpen(false)}
-                  style={{
-                    position: 'absolute',
-                    top: '1rem',
-                    right: '1rem',
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--text-secondary)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <X size={24} />
-                </button>
+          <ShareModal
+            isOpen={isShareModalOpen}
+            onClose={() => setIsShareModalOpen(false)}
+            imageBlob={shareImageBlob}
+            onDownload={handleDownloadImage}
+            onShare={handleNativeShare}
+            canShare={canShare}
+          />
 
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', textAlign: 'center' }}>Share Progress</h2>
-
-                <div style={{ borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                  <img
-                    src={URL.createObjectURL(shareImageBlob)}
-                    alt="Share Preview"
-                    style={{ maxWidth: '100%', maxHeight: '60vh', display: 'block' }}
-                  />
-                </div>
-
-                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-                  <button
-                    onClick={handleDownloadImage}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      padding: '0.75rem 1.5rem',
-                      backgroundColor: 'var(--card-bg)',
-                      color: 'var(--text-primary)',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontSize: '1rem',
-                      fontWeight: 500,
-                      transition: 'background-color 0.2s',
-                    }}
-                    className="hover-bg"
-                  >
-                    <Download size={20} />
-                    Download
-                  </button>
-
-                  {(navigator as any).share && (
-                    <button
-                      onClick={handleNativeShare}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        padding: '0.75rem 1.5rem',
-                        backgroundColor: '#60A5FA',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        fontSize: '1rem',
-                        fontWeight: 500,
-                        transition: 'opacity 0.2s',
-                      }}
-                      className="hover-opacity"
-                    >
-                      <Share2 size={20} />
-                      Share
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Credit Modal */}
-          {
-            isCreditOpen && (
-              <div style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                backdropFilter: 'blur(4px)',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                zIndex: 1000,
-                padding: '1rem',
-              }} onClick={() => setIsCreditOpen(false)}>
-                <div style={{
-                  backgroundColor: 'var(--card-bg)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '16px',
-                  padding: '2rem',
-                  maxWidth: '500px',
-                  width: '100%',
-                  position: 'relative',
-                  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-                }} onClick={e => e.stopPropagation()}>
-                  <button
-                    onClick={() => setIsCreditOpen(false)}
-                    style={{
-                      position: 'absolute',
-                      top: '1rem',
-                      right: '1rem',
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--text-secondary)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <X size={20} />
-                  </button>
-
-                  <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Credits</h2>
-
-                  <div style={{ color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: '0.95rem' }}>
-                    <p style={{ marginBottom: '1rem' }}>
-                      全ての人に最強の環境を！<br /><br />
-
-                      Original Work:<br />
-                      Touhou Project (Team Shanghai Alice / ZUN)<br /><br />
-
-                      Music:<br />
-                      TAMUSIC (TAM)<br /><br />
-
-                      Disclaimer:<br />
-                      本サービスは「東方Project」の二次創作です。<br />
-                      原作者である「上海アリス幻樂団」様およびZUN氏とは一切関係ありません。
-
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )
-          }
+          <CreditModal isOpen={isCreditOpen} onClose={() => setIsCreditOpen(false)} />
 
           <HubSidebar
             isOpen={isHubOpen}
