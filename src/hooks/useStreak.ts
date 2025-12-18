@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 
-export const useStreak = (characterCount: number) => {
+export const useStreak = () => {
     const [streak, setStreak] = useState<number>(0);
     const [isCompletedToday, setIsCompletedToday] = useState<boolean>(false);
-    const [startCount, setStartCount] = useState<number | null>(null);
+    // dailyProgress will now represent tasks completed today
+    const [dailyProgress, setDailyProgress] = useState<number>(0);
 
     // Helper to get today's date string (YYYY-MM-DD) in local time
     const getTodayString = () => {
@@ -14,94 +15,70 @@ export const useStreak = (characterCount: number) => {
         return `${year}-${month}-${day}`;
     };
 
-    useEffect(() => {
-        // Load initial state
-        const storedStreak = localStorage.getItem('chrct_streak');
-        const storedDate = localStorage.getItem('chrct_last_contribution');
+    const calculateStreak = () => {
+        const historyStr = localStorage.getItem('chrct_task_history');
+        const history: Record<string, number> = historyStr ? JSON.parse(historyStr) : {};
         const today = getTodayString();
 
-        let currentStreak = storedStreak ? parseInt(storedStreak, 10) : 0;
+        // Calculate today's progress
+        const tasksToday = history[today] || 0;
+        setDailyProgress(tasksToday);
 
-        if (storedDate === today) {
-            setIsCompletedToday(true);
-        } else {
-            setIsCompletedToday(false);
-            // Check for broken streak on load
-            if (storedDate) {
-                const lastDate = new Date(storedDate);
-                const nowDate = new Date(today);
-                const diffTime = Math.abs(nowDate.getTime() - lastDate.getTime());
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const completedToday = tasksToday > 0;
+        setIsCompletedToday(completedToday);
 
-                if (diffDays > 1) {
-                    currentStreak = 0; // Reset visual streak if broken
-                }
+        // Calculate streak
+        let currentStreak = 0;
+        let date = new Date();
+
+        // If completed today, start counting from today. 
+        // If not, start counting from yesterday to check if streak is alive.
+        if (!completedToday) {
+            date.setDate(date.getDate() - 1);
+        }
+
+        // Loop backwards
+        while (true) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
+
+            if (history[dateStr] && history[dateStr] > 0) {
+                currentStreak++;
+                date.setDate(date.getDate() - 1);
+            } else {
+                break;
             }
         }
+
         setStreak(currentStreak);
-
-        // Initialize daily start count
-        const storedStartDate = localStorage.getItem('chrct_today_start_date');
-        const storedStartCount = localStorage.getItem('chrct_today_start_count');
-
-        if (storedStartDate !== today) {
-            // New day, reset start count to current
-            localStorage.setItem('chrct_today_start_date', today);
-            localStorage.setItem('chrct_today_start_count', characterCount.toString());
-            setStartCount(characterCount);
-        } else {
-            // Same day, load stored start count
-            if (storedStartCount) {
-                setStartCount(parseInt(storedStartCount, 10));
-            } else {
-                // Fallback if date exists but count missing (e.g., first load after update)
-                localStorage.setItem('chrct_today_start_count', characterCount.toString());
-                setStartCount(characterCount);
-            }
-        }
-    }, []); // Run once on mount. Note: characterCount here is initial value.
+    };
 
     useEffect(() => {
-        if (isCompletedToday || startCount === null) return;
+        // Initial calculation
+        calculateStreak();
 
-        const today = getTodayString();
-        const storedDate = localStorage.getItem('chrct_last_contribution');
+        // Listen for task updates
+        const handleTaskUpdate = () => {
+            calculateStreak();
+        };
 
-        // If already completed today, ensure state reflects it and stop
-        if (storedDate === today) {
-            if (!isCompletedToday) setIsCompletedToday(true);
-            return;
-        }
+        window.addEventListener('chrct-task-update', handleTaskUpdate);
 
-        // Check if net increase is >= 100
-        if (characterCount - startCount >= 100) {
-            let currentStreak = streak;
-
-            if (storedDate) {
-                const lastDate = new Date(storedDate);
-                const nowDate = new Date(today);
-                const diffTime = Math.abs(nowDate.getTime() - lastDate.getTime());
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-                if (diffDays === 1) {
-                    currentStreak += 1;
-                } else if (diffDays > 1) {
-                    currentStreak = 1; // Reset and start new
-                } else {
-                    // Same day? Should be caught by first check, but just in case
-                }
-            } else {
-                currentStreak = 1;
+        // Also check on visibility change (in case user comes back next day without reload)
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                calculateStreak();
             }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
 
-            setStreak(currentStreak);
-            setIsCompletedToday(true);
-            localStorage.setItem('chrct_streak', currentStreak.toString());
-            localStorage.setItem('chrct_last_contribution', today);
-        }
-    }, [characterCount, startCount, isCompletedToday, streak]);
-
-    const dailyProgress = startCount !== null ? Math.max(0, characterCount - startCount) : 0;
+        return () => {
+            window.removeEventListener('chrct-task-update', handleTaskUpdate);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, []);
 
     return { streak, isCompletedToday, dailyProgress };
 };

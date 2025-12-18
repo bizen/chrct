@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { X, LayoutGrid } from 'lucide-react';
 import { ClockWidget } from './hub/ClockWidget';
-import { PomodoroWidget } from './hub/PomodoroWidget';
 import { ThemeWidget } from './hub/ThemeWidget';
 import { InfoWidget } from './hub/InfoWidget';
 import { MusicWidget } from './hub/MusicWidget';
 import { TaskCommitWidget } from './hub/TaskCommitWidget';
 import { TaskListWidget } from './hub/TaskListWidget';
+import { CharacterCountWidget } from './hub/CharacterCountWidget';
+import { PerplexityWidget } from './hub/PerplexityWidget';
+import { BookmarkWidget } from './hub/BookmarkWidget';
 
 interface HubSidebarProps {
     isOpen: boolean;
@@ -15,9 +17,30 @@ interface HubSidebarProps {
     setTheme: (theme: 'dark' | 'light' | 'wallpaper') => void;
     isMusicPlaying: boolean;
     toggleMusic: () => void;
+    viewMode: 'charCount' | 'taskList';
+    text: string;
+    handleTextChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+    stats: {
+        characters: number;
+        words: number;
+        sentences: number;
+        paragraphs: number;
+        spaces: number;
+    };
 }
 
-export function HubSidebar({ isOpen, onClose, theme, setTheme, isMusicPlaying, toggleMusic }: HubSidebarProps) {
+export function HubSidebar({
+    isOpen,
+    onClose,
+    theme,
+    setTheme,
+    isMusicPlaying,
+    toggleMusic,
+    viewMode,
+    text,
+    handleTextChange,
+    stats
+}: HubSidebarProps) {
     const [weather, setWeather] = useState<{ temp: number; code: number; city: string } | null>(null);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -137,11 +160,30 @@ export function HubSidebar({ isOpen, onClose, theme, setTheme, isMusicPlaying, t
                     {/* Widgets */}
                     <ClockWidget theme={theme} />
                     <InfoWidget theme={theme} weather={weather} />
-                    <PomodoroWidget theme={theme} />
-                    <TaskListWidget theme={theme} />
+
+                    {/* Conditionally render TaskList or CharacterCount */}
+                    {viewMode === 'charCount' ? (
+                        <TaskListWidget theme={theme} onlyInput={true} />
+                    ) : (
+                        <CharacterCountWidget
+                            text={text}
+                            handleTextChange={handleTextChange}
+                            stats={stats}
+                            theme={theme}
+                        />
+                    )}
+
                     <TaskCommitWidget theme={theme} />
                     <MusicWidget theme={theme} isMusicPlaying={isMusicPlaying} toggleMusic={toggleMusic} />
                     <ThemeWidget theme={theme} setTheme={setTheme} />
+
+                    {isMobile && (
+                        <>
+                            <div style={{ width: '100%', height: '1px', backgroundColor: theme === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)' }} />
+                            <PerplexityWidget theme={theme} />
+                            <BookmarkWidget theme={theme} />
+                        </>
+                    )}
                 </div>
             </div>
         </>

@@ -11,6 +11,10 @@ import chirunoMp3 from './assets/chiruno.mp3';
 import { playTypeSound } from './utils/sound';
 import { useStreak } from './hooks/useStreak';
 import { HubSidebar } from './components/HubSidebar';
+import { RightHubSidebar } from './components/RightHubSidebar';
+import { CharacterCountView } from './components/views/CharacterCountView';
+import { TaskListView } from './components/views/TaskListView';
+import { RefreshCw } from 'lucide-react';
 
 function App() {
   const [text, setText] = useState(() => {
@@ -25,7 +29,7 @@ function App() {
   });
   const [hasTyped, setHasTyped] = useState(false);
 
-  const { streak, isCompletedToday, dailyProgress } = useStreak(stats.characters);
+  const { streak, isCompletedToday, dailyProgress } = useStreak();
 
   // Theme state - default to wallpaper
   const [theme, setTheme] = useState<'dark' | 'light' | 'wallpaper'>(() => {
@@ -55,6 +59,20 @@ function App() {
   // Audio state
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // View Mode state
+  const [viewMode, setViewMode] = useState<'charCount' | 'taskList'>(() => {
+    const saved = localStorage.getItem('chrct_view_mode');
+    return (saved as 'charCount' | 'taskList') || 'charCount';
+  });
+
+  const toggleViewMode = () => {
+    setViewMode(prev => prev === 'charCount' ? 'taskList' : 'charCount');
+  };
+
+  useEffect(() => {
+    localStorage.setItem('chrct_view_mode', viewMode);
+  }, [viewMode]);
 
   useEffect(() => {
     audioRef.current = new Audio(chirunoMp3);
@@ -441,7 +459,7 @@ function App() {
                 <Snowflake size={20} className="streak-icon" />
                 <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1, alignItems: 'flex-start' }}>
                   <span>{streak} day{streak !== 1 ? 's' : ''}</span>
-                  <span style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 400 }}>{dailyProgress} chars</span>
+                  <span style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 400 }}>{dailyProgress} tasks</span>
                 </div>
               </div>
               <button
@@ -462,6 +480,26 @@ function App() {
                 title="Open Hub"
               >
                 <LayoutGrid size={20} />
+              </button>
+
+              <button
+                onClick={toggleViewMode}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'inherit',
+                  cursor: 'pointer',
+                  padding: '0.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '8px',
+                  transition: 'background-color 0.2s',
+                }}
+                className={`hover-bg ${isZenMode ? 'zen-hidden' : ''}`} // Hide in Zen Mode? Maybe keep it? User didn't specify. Assuming hidden like others.
+                title={viewMode === 'charCount' ? "Switch to Task List" : "Switch to Character Count"}
+              >
+                <RefreshCw size={20} />
               </button>
               <button
                 onClick={() => setIsCreditOpen(true)}
@@ -496,46 +534,21 @@ function App() {
             opacity: 0.5,
           }} className={`animate-in delay-100 ${isZenMode ? 'zen-hidden' : ''}`}></div>
 
-          <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem', flex: 1, width: '100%' }}>
-            <div style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column' }} className="animate-in delay-200">
-              <textarea
-                value={text}
-                onChange={handleTextChange}
-                placeholder="Start typing here..."
-                spellCheck={false}
-                style={{
-                  width: '100%',
-                  minHeight: '400px',
-                  backgroundColor: 'var(--card-bg)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '12px',
-                  padding: '1.5rem',
-                  color: 'var(--text-primary)',
-                  fontSize: '1.1rem',
-                  fontFamily: 'inherit',
-                  resize: 'none',
-                  outline: 'none',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                  transition: 'border-color 0.2s',
-                }}
+          <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem', flex: 1, width: '100%', position: 'relative' }}>
+            {viewMode === 'charCount' ? (
+              <CharacterCountView
+                text={text}
+                handleTextChange={handleTextChange}
+                stats={stats}
+                isZenMode={isZenMode}
               />
-            </div>
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-              gap: '1rem',
-            }} className={`animate-in delay-300 ${isZenMode ? 'zen-hidden' : ''}`}>
-              <StatCard label="CHARACTERS" value={stats.characters} />
-              <StatCard label="WORDS" value={stats.words} />
-              <StatCard label="SENTENCES" value={stats.sentences} />
-              <StatCard label="PARAGRAPHS" value={stats.paragraphs} />
-              <StatCard label="SPACES" value={stats.spaces} />
-            </div>
+            ) : (
+              <TaskListView theme={theme} />
+            )}
           </main>
 
           <footer style={{
-            display: 'flex',
+            display: viewMode === 'charCount' ? 'flex' : 'none',
             justifyContent: 'space-between',
             alignItems: 'flex-end',
             padding: '2rem 0',
@@ -780,54 +793,49 @@ function App() {
             )
           }
 
+          <HubSidebar
+            isOpen={isHubOpen}
+            onClose={() => setIsHubOpen(false)}
+            theme={theme}
+            setTheme={setTheme}
+            isMusicPlaying={isPlaying}
+            toggleMusic={toggleMusic}
+            viewMode={viewMode}
+            text={text}
+            handleTextChange={handleTextChange}
+            stats={stats}
+          />
+          {/* Right Hub Sidebar */}
+          <RightHubSidebar
+            isOpen={isHubOpen}
+            onClose={() => setIsHubOpen(false)}
+            theme={theme}
+          />
 
-
-        </div> {/* End of Main Content Wrapper inner div */}
-      </div> {/* End of Main Content Wrapper */}
-
-      <HubSidebar
-        isOpen={isHubOpen}
-        onClose={() => setIsHubOpen(false)}
-        theme={theme}
-        setTheme={setTheme}
-        isMusicPlaying={isPlaying}
-        toggleMusic={toggleMusic}
-      />
+        </div>
+      </div>
+      {/* Animated Header Part Component */}
     </div>
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div style={{
-      backgroundColor: 'var(--card-bg)',
-      border: '1px solid var(--border-color)',
-      borderRadius: '12px',
-      padding: '1.5rem',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '0.5rem',
-      minWidth: '0',
-    }}>
-      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-        {label}
-      </span>
-      <span className="stat-card-value" style={{ fontSize: '2.5rem', fontWeight: 700, color: 'var(--accent-color)', lineHeight: 1 }}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
+// Subcomponent for animated header parts
 function AnimatedPart({ isVisible, text, color }: { isVisible: boolean; text: string; color: string }) {
   return (
     <span
-      className={`anim-part ${isVisible ? 'visible' : ''}`}
-      style={{ color }}
+      className="logo-animated"
+      style={{
+        maxWidth: isVisible ? '200px' : '0',
+        opacity: isVisible ? 1 : 0,
+        color: color,
+        overflow: 'hidden',
+        display: 'inline-block',
+        verticalAlign: 'bottom',
+        transition: 'all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1)',
+        whiteSpace: 'nowrap'
+      }}
     >
-      <span key={text} className="anim-content">
-        {text}
-      </span>
+      {text}
     </span>
   );
 }
