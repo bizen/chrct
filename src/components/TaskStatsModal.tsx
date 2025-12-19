@@ -1,7 +1,7 @@
 
 import { X, BarChart, Trophy, Calendar, Zap, Clock, Hourglass, Target } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
-import { useQuery } from 'convex/react';
+import { useQuery, useConvexAuth } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { TaskCommitWidget } from './hub/TaskCommitWidget';
 
@@ -13,7 +13,8 @@ interface TaskStatsModalProps {
 
 export function TaskStatsModal({ isOpen, onClose, theme }: TaskStatsModalProps) {
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-    const tasks = useQuery(api.tasks.get) || [];
+    const { isAuthenticated } = useConvexAuth();
+    const tasks = useQuery(api.tasks.get, isAuthenticated ? {} : "skip") || [];
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
