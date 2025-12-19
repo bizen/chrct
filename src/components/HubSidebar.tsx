@@ -4,7 +4,7 @@ import { ClockWidget } from './hub/ClockWidget';
 import { ThemeWidget } from './hub/ThemeWidget';
 import { InfoWidget } from './hub/InfoWidget';
 import { MusicWidget } from './hub/MusicWidget';
-import { TaskCommitWidget } from './hub/TaskCommitWidget';
+
 import { TaskListWidget } from './hub/TaskListWidget';
 import { CharacterCountWidget } from './hub/CharacterCountWidget';
 import { PerplexityWidget } from './hub/PerplexityWidget';
@@ -173,7 +173,7 @@ export function HubSidebar({
                         />
                     )}
 
-                    <TaskCommitWidget theme={theme} />
+                    {/* Removed TaskCommitWidget */}
                     <MusicWidget theme={theme} isMusicPlaying={isMusicPlaying} toggleMusic={toggleMusic} />
                     <ThemeWidget theme={theme} setTheme={setTheme} />
 

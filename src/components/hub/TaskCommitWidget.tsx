@@ -1,17 +1,12 @@
-import { useState, useEffect } from 'react';
 
-export function TaskCommitWidget({ theme }: { theme: 'dark' | 'light' | 'wallpaper' }) {
-    const [history, setHistory] = useState<Record<string, number>>({});
 
-    useEffect(() => {
-        const loadHistory = () => {
-            const saved = localStorage.getItem('chrct_task_history');
-            setHistory(saved ? JSON.parse(saved) : {});
-        };
-        loadHistory();
-        window.addEventListener('chrct-task-update', loadHistory);
-        return () => window.removeEventListener('chrct-task-update', loadHistory);
-    }, []);
+interface TaskCommitWidgetProps {
+    theme: 'dark' | 'light' | 'wallpaper';
+    historyData?: Record<string, number>;
+}
+
+export function TaskCommitWidget({ theme, historyData = {} }: TaskCommitWidgetProps) {
+    const history = historyData;
 
     const getIntensityColor = (count: number) => {
         if (count === 0) return theme === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
@@ -24,10 +19,10 @@ export function TaskCommitWidget({ theme }: { theme: 'dark' | 'light' | 'wallpap
 
     const renderGrid = () => {
         const today = new Date();
-        const numWeeks = 21; // Fill the width (approx 260px available)
+        const numWeeks = 52; // Full Year
         const days = [];
-        const daySize = 10;
-        const gap = 2;
+        const daySize = 13;
+        const gap = 3;
 
         // We want to render columns (weeks)
         for (let w = 0; w < numWeeks; w++) {
@@ -52,7 +47,7 @@ export function TaskCommitWidget({ theme }: { theme: 'dark' | 'light' | 'wallpap
                         style={{
                             width: `${daySize}px`,
                             height: `${daySize}px`,
-                            borderRadius: '1px',
+                            borderRadius: '2px', // Slightly rounded
                             backgroundColor: getIntensityColor(count),
                             opacity: 1,
                         }}

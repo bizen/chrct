@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Sparkles, Copy, Trash2, FileText, Printer, Share2, Snowflake, LayoutGrid } from 'lucide-react';
+import { SignedIn, SignedOut, UserButton, SignInButton } from "@clerk/clerk-react";
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
 import html2canvas from 'html2canvas';
@@ -26,6 +27,14 @@ import { playTypeSound } from './utils/sound';
 import { useStreak } from './hooks/useStreak';
 
 function App() {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const [text, setText] = useState(() => {
     return localStorage.getItem('chrct_text') || '';
   });
@@ -460,20 +469,27 @@ function App() {
                 <span className="logo-static" style={{ color: 'var(--text-primary)' }}>t</span>
               </div>
             </div>
-            <nav style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 500 }}>
+
+            <nav className={`header-actions ${isZenMode ? 'zen-hidden' : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 500 }}>
+
+              {/* Streak Badge - Compact on Mobile */}
               <div
-                className={`streak-badge ${isCompletedToday ? 'completed' : ''} ${isZenMode ? 'zen-hidden' : ''}`}
+                className={`streak-badge ${isCompletedToday ? 'completed' : ''}`}
                 title={isCompletedToday ? "Streak kept! Come back tomorrow." : "Write 100 characters to keep the streak!"}
                 style={{
-                  padding: '0.25rem 1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  // padding handled by CSS class for responsiveness
                 }}
               >
                 <Snowflake size={20} className="streak-icon" />
                 <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1, alignItems: 'flex-start' }}>
-                  <span>{streak} day{streak !== 1 ? 's' : ''}</span>
-                  <span style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 400 }}>{dailyProgress} tasks</span>
+                  <span>{streak}<span className="mobile-hidden"> day{streak !== 1 ? 's' : ''}</span></span>
+                  <span className="streak-details" style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 400 }}>{dailyProgress} tasks</span>
                 </div>
               </div>
+
               <button
                 onClick={() => setIsHubOpen(!isHubOpen)}
                 style={{
@@ -488,7 +504,7 @@ function App() {
                   borderRadius: '8px',
                   transition: 'background-color 0.2s',
                 }}
-                className={`hover-bg ${isZenMode ? 'zen-hidden' : ''}`}
+                className="hover-bg"
                 title="Open Hub"
               >
                 <LayoutGrid size={20} />
@@ -508,11 +524,12 @@ function App() {
                   borderRadius: '8px',
                   transition: 'background-color 0.2s',
                 }}
-                className={`hover-bg ${isZenMode ? 'zen-hidden' : ''}`} // Hide in Zen Mode? Maybe keep it? User didn't specify. Assuming hidden like others.
+                className="hover-bg"
                 title={viewMode === 'charCount' ? "Switch to Task List" : "Switch to Character Count"}
               >
                 <RefreshCw size={20} />
               </button>
+
               <button
                 onClick={() => setIsCreditOpen(true)}
                 style={{
@@ -523,7 +540,7 @@ function App() {
                   cursor: 'pointer',
                   padding: 0,
                 }}
-                className={`nav-link ${isZenMode ? 'zen-hidden' : ''}`}
+                className="nav-link mobile-hidden"
               >
                 Credit
               </button>
@@ -536,6 +553,19 @@ function App() {
               >
                 9
               </button>
+
+              <div style={{ marginLeft: '0.25rem' }}>
+                <SignedIn>
+                  <UserButton />
+                </SignedIn>
+                <SignedOut>
+                  <SignInButton mode="modal">
+                    <button className="sign-in-btn">
+                      Sign In
+                    </button>
+                  </SignInButton>
+                </SignedOut>
+              </div>
             </nav>
           </header>
 
@@ -562,12 +592,14 @@ function App() {
           <footer style={{
             display: viewMode === 'charCount' ? 'flex' : 'none',
             justifyContent: 'space-between',
-            alignItems: 'flex-end',
+            alignItems: isMobile ? 'center' : 'flex-end',
             padding: '2rem 0',
             width: '100%',
+            flexDirection: isMobile ? 'column' : 'row',
+            gap: isMobile ? '1rem' : '0'
           }} className={`animate-in delay-400 ${isZenMode ? 'zen-hidden' : ''}`}>
             {/* Left: Export Buttons */}
-            <div style={{ display: 'flex', gap: '1rem' }}>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: isMobile ? 'center' : 'flex-start', width: isMobile ? '100%' : 'auto' }}>
               <button onClick={handleExportDocx} title="Export to Word (.docx)" className="icon-btn">
                 <FileText size={20} />
               </button>
@@ -580,7 +612,7 @@ function App() {
             </div>
 
             {/* Right: Timestamp & Actions */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'center' : 'flex-end', gap: '0.5rem', width: isMobile ? '100%' : 'auto' }}>
               {lastSaved && (
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.8, fontFamily: 'monospace' }}>
                   Saved {lastSaved.getMonth() + 1}/{lastSaved.getDate()} {lastSaved.getHours().toString().padStart(2, '0')}:{lastSaved.getMinutes().toString().padStart(2, '0')}
@@ -597,7 +629,9 @@ function App() {
             </div>
           </footer>
 
-          <Mascot popups={popups} isAboutOpen={isAboutOpen} onToggleAbout={() => setIsAboutOpen(!isAboutOpen)} />
+          {!isMobile && (
+            <Mascot popups={popups} isAboutOpen={isAboutOpen} onToggleAbout={() => setIsAboutOpen(!isAboutOpen)} />
+          )}
 
           <ShareModal
             isOpen={isShareModalOpen}
@@ -638,6 +672,36 @@ function App() {
 
 // Subcomponent for animated header parts
 function AnimatedPart({ isVisible, text, color }: { isVisible: boolean; text: string; color: string }) {
+  const [currentText, setCurrentText] = useState(text);
+  const [previousText, setPreviousText] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (text !== currentText) {
+      setPreviousText(currentText);
+      setCurrentText(text);
+    }
+  }, [text, currentText]);
+
+  useEffect(() => {
+    if (previousText) {
+      const timer = setTimeout(() => {
+        setPreviousText(null);
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [previousText]);
+
+  // Reset state when not visible to ensure clean slate on next hover
+  useEffect(() => {
+    if (!isVisible) {
+      const timer = setTimeout(() => {
+        setPreviousText(null);
+        setCurrentText(text);
+      }, 500); // Wait for close animation
+      return () => clearTimeout(timer);
+    }
+  }, [isVisible, text]);
+
   return (
     <span
       className="logo-animated"
@@ -649,10 +713,16 @@ function AnimatedPart({ isVisible, text, color }: { isVisible: boolean; text: st
         display: 'inline-block',
         verticalAlign: 'bottom',
         transition: 'all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1)',
-        whiteSpace: 'nowrap'
+        whiteSpace: 'nowrap',
+        position: 'relative'
       }}
     >
-      {text}
+      {previousText && (
+        <span className="slide-out-up" style={{ color }}>{previousText}</span>
+      )}
+      <span className={previousText ? "slide-in-up" : ""} key={currentText}>
+        {currentText}
+      </span>
     </span>
   );
 }

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, BarChart } from 'lucide-react';
+import { useUser } from "@clerk/clerk-react";
 import { PerplexityWidget } from './hub/PerplexityWidget';
 import { BookmarkWidget } from './hub/BookmarkWidget';
+import { TaskStatsModal } from './TaskStatsModal';
 
 interface RightHubSidebarProps {
     isOpen: boolean;
@@ -15,6 +17,8 @@ export function RightHubSidebar({
     theme,
 }: RightHubSidebarProps) {
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    const { isSignedIn } = useUser();
+    const [isStatsOpen, setIsStatsOpen] = useState(false);
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -96,7 +100,36 @@ export function RightHubSidebar({
 
                 <PerplexityWidget theme={theme} />
                 <BookmarkWidget theme={theme} />
+
+                {/* Signed In Only: Task Stats Button */}
+                {isSignedIn && (
+                    <button
+                        onClick={() => setIsStatsOpen(true)}
+                        style={{
+                            marginTop: 'auto', // Push to bottom if container has height, otherwise just at end
+                            width: '100%',
+                            padding: '0.75rem',
+                            borderRadius: '12px',
+                            border: 'none',
+                            backgroundColor: theme === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)',
+                            color: theme === 'light' ? '#374151' : 'white',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.5rem',
+                            fontWeight: 600,
+                            transition: 'all 0.2s',
+                        }}
+                        className="hover-bg"
+                    >
+                        <BarChart size={18} />
+                        View Task Stats
+                    </button>
+                )}
             </div>
+
+            <TaskStatsModal isOpen={isStatsOpen} onClose={() => setIsStatsOpen(false)} theme={theme} />
         </div>
     );
 }

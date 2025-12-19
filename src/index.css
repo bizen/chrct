@@ -283,6 +283,32 @@ textarea:focus {
   }
 }
 
+@keyframes slideOutUp {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  to {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}
+
+.slide-out-up {
+  animation: slideOutUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+}
+
+.slide-in-up {
+  animation: slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  display: inline-block;
+  white-space: nowrap;
+}
+
 /* Page Load Animations */
 @keyframes fadeInUp {
   from {
@@ -584,4 +610,63 @@ textarea:focus {
 .zen-button:hover::before {
   opacity: 0.1;
   transform: scale(1);
+}
+
+.sign-in-btn {
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  padding: 0.5rem 1.25rem;
+  border-radius: 99px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  transition: opacity 0.2s, transform 0.1s;
+}
+
+.sign-in-btn:hover {
+  opacity: 0.9;
+}
+
+.sign-in-btn:active {
+  transform: scale(0.98);
+}
+
+/* Mobile Responsiveness Utility Classes */
+@media (max-width: 768px) {
+  .mobile-hidden {
+    display: none !important;
+  }
+
+  .streak-badge .streak-details {
+    display: none;
+  }
+
+  .streak-badge {
+    padding: 0.25rem 0.6rem !important;
+  }
+
+  .streak-badge span {
+    font-size: 0.85rem;
+  }
+
+  .header-actions {
+    gap: 0.5rem !important;
+  }
+
+  .sign-in-btn {
+    padding: 0.4rem 0.8rem !important;
+    font-size: 0.8rem !important;
+  }
+
+  .zen-button {
+    display: none !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .desktop-hidden {
+    display: none !important;
+  }
 }
