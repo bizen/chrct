@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, X } from 'lucide-react';
+import { useConvexAuth, useQuery, useMutation } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
+import type { Id } from '../../../convex/_generated/dataModel';
 
 interface Bookmark {
-    id: string;
+    id: string; // can be local ID or Convex ID
     name: string;
     url: string;
 }
@@ -12,15 +15,18 @@ interface BookmarkWidgetProps {
 }
 
 export const BookmarkWidget: React.FC<BookmarkWidgetProps> = ({ theme }) => {
-    // Load from local storage or default
-    const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => {
+    // Convex
+    const { isAuthenticated } = useConvexAuth();
+    const remoteBookmarks = useQuery(api.sync.getBookmarks, isAuthenticated ? {} : "skip");
+    const addBookmarkMutation = useMutation(api.sync.addBookmark);
+    const removeBookmarkMutation = useMutation(api.sync.removeBookmark);
+    const syncBookmarks = useMutation(api.sync.syncBookmarks);
+
+    // Local State
+    const [localBookmarks, setLocalBookmarks] = useState<Bookmark[]>(() => {
         const saved = localStorage.getItem('chrct_bookmarks');
         if (saved) {
-            try {
-                return JSON.parse(saved);
-            } catch (e) {
-                console.error("Failed to parse bookmarks", e);
-            }
+            try { return JSON.parse(saved); } catch (e) { console.error(e); }
         }
         return [
             { id: '1', name: 'Perplexity', url: 'https://www.perplexity.ai' },
@@ -33,11 +39,34 @@ export const BookmarkWidget: React.FC<BookmarkWidgetProps> = ({ theme }) => {
     const [newName, setNewName] = useState('');
     const [newUrl, setNewUrl] = useState('');
 
+    // Sync Logic: Migrate local to remote on first auth
     useEffect(() => {
-        localStorage.setItem('chrct_bookmarks', JSON.stringify(bookmarks));
-    }, [bookmarks]);
+        if (isAuthenticated && remoteBookmarks !== undefined && remoteBookmarks.length === 0) {
+            // Check if we have local bookmarks to sync
+            if (localBookmarks.length > 0) {
+                // Sync trigger
+                syncBookmarks({ bookmarks: localBookmarks });
+            }
+        }
+    }, [isAuthenticated, remoteBookmarks]);
 
-    const handleAdd = (e: React.FormEvent) => {
+    // Update Local Storage (only if not authenticated, or to keep backup?)
+    // If authenticated, we rely on remoteBookmarks for display, but let's keep local updated strictly if we want offline support?
+    // For now, simple split: If auth, show remote. If not, show local.
+    useEffect(() => {
+        if (!isAuthenticated) {
+            localStorage.setItem('chrct_bookmarks', JSON.stringify(localBookmarks));
+        }
+    }, [localBookmarks, isAuthenticated]);
+
+    // Unified list
+    const bookmarks = isAuthenticated ? (remoteBookmarks || []).map((b: any) => ({
+        id: b._id,
+        name: b.name,
+        url: b.url
+    })) : localBookmarks;
+
+    const handleAdd = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newName || !newUrl) return;
 
@@ -46,22 +75,31 @@ export const BookmarkWidget: React.FC<BookmarkWidgetProps> = ({ theme }) => {
             formattedUrl = 'https://' + formattedUrl;
         }
 
-        const newBookmark: Bookmark = {
-            id: Date.now().toString(),
-            name: newName,
-            url: formattedUrl,
-        };
+        if (isAuthenticated) {
+            await addBookmarkMutation({ name: newName, url: formattedUrl });
+        } else {
+            const newBookmark: Bookmark = {
+                id: Date.now().toString(),
+                name: newName,
+                url: formattedUrl,
+            };
+            setLocalBookmarks([...localBookmarks, newBookmark]);
+        }
 
-        setBookmarks([...bookmarks, newBookmark]);
         setNewName('');
         setNewUrl('');
         setIsAdding(false);
     };
 
-    const handleDelete = (id: string, e: React.MouseEvent) => {
-        e.preventDefault(); // Prevent link click
+    const handleDelete = async (id: string, e: React.MouseEvent) => {
+        e.preventDefault();
         e.stopPropagation();
-        setBookmarks(bookmarks.filter(b => b.id !== id));
+
+        if (isAuthenticated) {
+            await removeBookmarkMutation({ id: id as Id<"bookmarks"> });
+        } else {
+            setLocalBookmarks(localBookmarks.filter(b => b.id !== id));
+        }
     };
 
     const getFavicon = (url: string) => {
@@ -114,7 +152,7 @@ export const BookmarkWidget: React.FC<BookmarkWidgetProps> = ({ theme }) => {
                 gap: '0.25rem',
             }}>
                 {/* List */}
-                {bookmarks.map((bm) => (
+                {bookmarks.map((bm: Bookmark) => (
                     <a
                         key={bm.id}
                         href={bm.url}

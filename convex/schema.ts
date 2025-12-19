@@ -15,4 +15,17 @@ export default defineSchema({
     })
         .index("by_user", ["userId"])
         .index("by_user_parent", ["userId", "parentId"]),
+
+    bookmarks: defineTable({
+        userId: v.string(),
+        name: v.string(),
+        url: v.string(),
+        createdAt: v.number(),
+    }).index("by_user", ["userId"]),
+
+    documents: defineTable({
+        userId: v.string(),
+        text: v.string(),
+        updatedAt: v.number(),
+    }).index("by_user", ["userId"]),
 });
