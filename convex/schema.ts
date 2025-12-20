@@ -7,6 +7,7 @@ export default defineSchema({
         text: v.string(),
         status: v.string(), // 'idle' | 'active' | 'completed'
         completedAt: v.optional(v.string()),
+        completedTimestamp: v.optional(v.number()),
         firstMove: v.optional(v.string()),
         totalTime: v.optional(v.number()),
         activeSince: v.optional(v.number()),

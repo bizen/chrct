@@ -663,6 +663,55 @@ textarea:focus {
   .zen-button {
     display: none !important;
   }
+
+  /* Task List Mobile Optimizations */
+  .task-row {
+    padding: 0.75rem !important;
+    gap: 0.5rem !important;
+  }
+
+  .task-row .task-text-input {
+    font-size: 1rem !important;
+    min-width: 0 !important;
+  }
+
+  .task-row .task-actions {
+    flex-wrap: wrap;
+    gap: 0.25rem !important;
+  }
+
+  .task-row .task-actions button {
+    padding: 8px !important;
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  .task-timer {
+    font-size: 0.75rem !important;
+  }
+
+  .subtask-indent {
+    margin-left: 1rem !important;
+  }
+
+  /* First Move Modal on Mobile */
+  .first-move-modal {
+    padding: 1rem !important;
+  }
+
+  .first-move-modal input {
+    font-size: 0.9rem !important;
+    padding: 0.75rem !important;
+  }
+
+  .first-move-modal .modal-buttons {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .first-move-modal .modal-buttons button {
+    width: 100%;
+  }
 }
 
 @media (min-width: 769px) {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, memo } from 'react';
 import { Plus, Check, Trash2, GitBranch, GripVertical, Clock } from 'lucide-react';
 import {
     DndContext,
@@ -26,6 +26,7 @@ interface Task {
     text: string;
     status: 'idle' | 'active' | 'completed';
     completedAt?: string;
+    completedTimestamp?: number;
     firstMove?: string;
     subtasks?: Task[];
     totalTime?: number;
@@ -64,6 +65,7 @@ interface TaskRowProps {
     firstMoveText: string;
     timeLeft: number;
     now: number;
+    isMobile: boolean;
     handlers: {
         updateTaskStatus: (id: string, status: 'idle' | 'active' | 'completed') => void;
         updateTaskText: (id: string, text: string) => void;
@@ -75,6 +77,89 @@ interface TaskRowProps {
         setFirstMoveText: (text: string) => void;
     };
 }
+
+
+
+interface TaskInputProps {
+    initialText: string;
+    taskId: string;
+    isCompleted: boolean;
+    isActive: boolean;
+    isMobile: boolean;
+    onUpdate: (id: string, text: string) => void;
+}
+
+const TaskInput = memo(({ initialText, taskId, isCompleted, isActive, isMobile, onUpdate }: TaskInputProps) => {
+    const inputRef = useRef<HTMLInputElement>(null);
+    const isComposingRef = useRef(false);
+
+    // Block any value sync while user is composing or input is focused
+    useEffect(() => {
+        const input = inputRef.current;
+        if (input && !isComposingRef.current && document.activeElement !== input) {
+            input.value = initialText;
+        }
+    }, [initialText]);
+
+    const handleCompositionStart = () => {
+        isComposingRef.current = true;
+    };
+
+    const handleCompositionEnd = () => {
+        isComposingRef.current = false;
+    };
+
+    const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+        if (e.target.value !== initialText) {
+            onUpdate(taskId, e.target.value);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !isComposingRef.current) {
+            (e.currentTarget as HTMLInputElement).blur();
+        }
+    };
+
+    return (
+        <input
+            ref={inputRef}
+            className="task-text-input"
+            defaultValue={initialText}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            disabled={isCompleted}
+            style={{
+                fontSize: isMobile ? '1rem' : '1.2rem',
+                textDecoration: isCompleted ? 'line-through' : 'none',
+                color: isCompleted ? 'var(--text-secondary)' : 'var(--text-primary)',
+                fontWeight: isActive ? 600 : 400,
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                flex: 1,
+                fontFamily: 'inherit',
+                padding: 0,
+                margin: 0,
+                transition: 'color 0.2s',
+                width: '100%',
+                minWidth: 0, // Important for text truncation in flex containers
+            }}
+        />
+    );
+}, (prev, next) => {
+    // Do NOT compare initialText. This prevents any re-render during editing.
+    // The input is uncontrolled, so its value is self-managed.
+    // We only need to re-render if the task identity or visual state changes.
+    return (
+        prev.taskId === next.taskId &&
+        prev.isCompleted === next.isCompleted &&
+        prev.isActive === next.isActive &&
+        prev.isMobile === next.isMobile
+    );
+});
 
 const SortableTaskRow = (props: TaskRowProps) => {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.task.id });
@@ -95,9 +180,13 @@ const SortableTaskRow = (props: TaskRowProps) => {
 };
 
 const TaskContent = ({
-    task, depth, isZoneActive, theme, firstMoveModal, firstMoveText, timeLeft, now, handlers,
+    task, depth, isZoneActive, theme, firstMoveModal, firstMoveText, timeLeft, now, isMobile, handlers,
     dragHandleAttributes, dragHandleListeners
 }: TaskRowProps & { dragHandleAttributes?: any, dragHandleListeners?: any }) => {
+    // Memoized Input Component Logic extracted to TaskInput above
+    // TaskContent now delegates input rendering to TaskInput.
+    // No local state or refs needed here anymore.
+
     const isThisActive = task.status === 'active';
     const isDisabled = isZoneActive && !isThisActive && task.status !== 'completed';
     const isPrompting = firstMoveModal.isOpen && firstMoveModal.taskId === task.id;
@@ -109,21 +198,22 @@ const TaskContent = ({
 
     return (
         <div
-            className="group"
+            className={`group ${depth > 0 ? 'subtask-indent' : ''}`}
             style={{
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '0.5rem',
-                marginLeft: depth > 0 ? `${depth * 1.5}rem` : '0',
+                marginLeft: depth > 0 ? (isMobile ? '1rem' : `${depth * 1.5}rem`) : '0',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
         >
             <div
+                className="task-row"
                 style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.75rem',
-                    padding: '1rem',
+                    gap: isMobile ? '0.5rem' : '0.75rem',
+                    padding: isMobile ? '0.75rem' : '1rem',
                     position: 'relative',
                     borderRadius: isPrompting ? '16px 16px 0 0' : '16px',
                     backgroundColor: isThisActive
@@ -140,7 +230,7 @@ const TaskContent = ({
                     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                     opacity: isDisabled ? 0.3 : (isCompleted ? 0.8 : 1),
                     pointerEvents: isDisabled ? 'none' : 'auto',
-                    transform: isThisActive ? 'scale(1.02)' : 'scale(1)',
+                    transform: isThisActive && !isMobile ? 'scale(1.02)' : 'scale(1)',
                     boxShadow: isThisActive
                         ? '0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 5px 10px -5px rgba(0, 0, 0, 0.1)'
                         : (isCompleted ? 'none' : '0 1px 3px rgba(0,0,0,0.05)'),
@@ -215,29 +305,17 @@ const TaskContent = ({
                 {/* Task Text & Input */}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <input
-                            value={task.text}
-                            onChange={(e) => handlers.updateTaskText(task.id, e.target.value)}
-                            disabled={isCompleted}
-                            style={{
-                                fontSize: '1.2rem',
-                                textDecoration: isCompleted ? 'line-through' : 'none',
-                                color: isCompleted ? 'var(--text-secondary)' : 'var(--text-primary)',
-                                fontWeight: isThisActive ? 600 : 400,
-                                background: 'transparent',
-                                border: 'none',
-                                outline: 'none',
-                                flex: 1,
-                                fontFamily: 'inherit',
-                                padding: 0,
-                                margin: 0,
-                                transition: 'color 0.2s',
-                                width: '100%',
-                            }}
+                        <TaskInput
+                            initialText={task.text}
+                            taskId={task.id}
+                            isCompleted={isCompleted}
+                            isActive={isThisActive}
+                            isMobile={isMobile}
+                            onUpdate={handlers.updateTaskText}
                         />
-                        {/* Timer Display */}
-                        {(hasTime || isThisActive) && (
-                            <div style={{
+                        {/* Timer Display - Hidden on mobile for space */}
+                        {!isMobile && (hasTime || isThisActive) && (
+                            <div className="task-timer" style={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '4px',
@@ -269,8 +347,8 @@ const TaskContent = ({
                     )}
                 </div>
 
-                {/* Actions */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: isCompleted ? 0.5 : 1 }}>
+                {/* Actions - simplified on mobile for active tasks */}
+                <div className="task-actions" style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '0.25rem' : '0.5rem', opacity: isCompleted ? 0.5 : 1, flexShrink: 0 }}>
 
                     {isThisActive && (
                         <button
@@ -292,7 +370,8 @@ const TaskContent = ({
                         </button>
                     )}
 
-                    {depth === 0 && !isZoneActive && !isCompleted && (
+                    {/* Add Subtask - hide on mobile when active to save space */}
+                    {depth === 0 && !isZoneActive && !isCompleted && !(isMobile && isThisActive) && (
                         <button // Add Subtask
                             onClick={() => handlers.addSubtask(task.id)}
                             style={{
@@ -313,7 +392,8 @@ const TaskContent = ({
                         </button>
                     )}
 
-                    {!isZoneActive && !isCompleted && ( // Delete - only for editing flow
+                    {/* Delete - hide on mobile when active to save space */}
+                    {!isZoneActive && !isCompleted && !(isMobile && isThisActive) && ( // Delete - only for editing flow
                         <button
                             onClick={() => handlers.deleteTask(task.id)}
                             style={{
@@ -338,23 +418,7 @@ const TaskContent = ({
                             <Trash2 size={18} />
                         </button>
                     )}
-                    {isCompleted && (
-                        <button
-                            onClick={() => handlers.deleteTask(task.id)}
-                            style={{
-                                background: 'none',
-                                border: 'none',
-                                color: 'var(--text-secondary)',
-                                cursor: 'pointer',
-                                padding: '6px',
-                                opacity: 0.3,
-                                transition: 'all 0.2s',
-                            }}
-                            className="hover:opacity-100"
-                        >
-                            <Trash2 size={16} />
-                        </button>
-                    )}
+                    {/* Delete button removed for completed tasks as per requirement */}
                 </div>
             </div>
 
@@ -438,6 +502,7 @@ const TaskContent = ({
                                 firstMoveText={firstMoveText}
                                 timeLeft={timeLeft}
                                 now={now}
+                                isMobile={isMobile}
                                 handlers={handlers}
                             />
                         ))}
@@ -491,7 +556,34 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
         });
 
         // 3. Sort
-        const sortFn = (a: Task, b: Task) => (a.order ?? 0) - (b.order ?? 0);
+        // 3. Sort
+        // Helper to identify tasks that are active or have active descendants
+        const activeTreeSet = new Set<string>();
+        const populateActiveTree = (nodes: Task[]): boolean => {
+            let hasActive = false;
+            for (const node of nodes) {
+                const selfActive = node.status === 'active';
+                const childrenActive = node.subtasks && node.subtasks.length > 0 ? populateActiveTree(node.subtasks) : false;
+                if (selfActive || childrenActive) {
+                    activeTreeSet.add(node.id);
+                    hasActive = true;
+                }
+            }
+            return hasActive;
+        };
+        populateActiveTree(roots);
+
+        const sortFn = (a: Task, b: Task) => {
+            // Priority 1: Active or has active descendant
+            const aIsActive = activeTreeSet.has(a.id);
+            const bIsActive = activeTreeSet.has(b.id);
+            if (aIsActive && !bIsActive) return -1;
+            if (!aIsActive && bIsActive) return 1;
+
+            // Priority 2: Order
+            return (a.order ?? 0) - (b.order ?? 0);
+        };
+
         const recursiveSort = (nodes: Task[]) => {
             nodes.sort(sortFn);
             nodes.forEach(n => recursiveSort(n.subtasks!));
@@ -562,7 +654,10 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
     }, [firstMoveModal.isOpen, timeLeft]);
 
     const initiateZone = (taskId: string) => {
-        if (isAnyTaskActive(tasks)) return;
+        if (isAnyTaskActive(tasks)) {
+            alert("Please complete or stop your current active task first.");
+            return;
+        }
         setFirstMoveModal({ isOpen: true, taskId });
         setTimeLeft(60);
         setFirstMoveText('');
@@ -577,6 +672,9 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
             status: 'active',
             firstMove: firstMoveText.trim(),
             activeSince: Date.now()
+        }).catch(e => {
+            console.error("Failed to start task:", e);
+            alert("Failed to start task. Please check your connection.");
         });
 
         setFirstMoveModal({ isOpen: false, taskId: null });
@@ -735,6 +833,7 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
             const today = new Date();
             const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
             updates.completedAt = dateStr;
+            updates.completedTimestamp = Date.now();
 
             // totalTime update
             if (task.status === 'active' && task.activeSince) {
@@ -765,7 +864,11 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
             updates.activeSince = 0;
         }
 
-        updateTaskMutation({ id: id as Id<"tasks">, ...updates });
+        updateTaskMutation({ id: id as Id<"tasks">, ...updates })
+            .catch(e => {
+                console.error("Update failed:", e);
+                alert("Failed to update task. If this persists, try restarting the app/backend.");
+            });
     };
 
     const updateTaskText = (id: string, newText: string) => {
@@ -779,7 +882,25 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
     const handlers = { updateTaskStatus, updateTaskText, deleteTask, addSubtask, initiateZone, confirmZone, cancelZone, setFirstMoveText };
 
     const activeTasks = tasks.filter(t => t.status !== 'completed');
-    const completedTasks = tasks.filter(t => t.status === 'completed');
+    const completedTasks = tasks.filter(t => {
+        if (t.status !== 'completed') return false;
+        // Auto-delete (hide) after 24 hours
+        if (t.completedTimestamp) {
+            return (Date.now() - t.completedTimestamp) < (24 * 60 * 60 * 1000);
+        }
+        // Fallback for old tasks without timestamp: separate by date?
+        // If we want strict 24h and no timestamp exists, maybe we show them or hide them?
+        // Let's hide them if completedAt is not today?
+        // Or just show them (safe default).
+        // User said "completed tasks cannot be manually deleted", so hiding old ones is safer.
+        // Let's assume if no timestamp, check completedAt date vs today.
+        if (t.completedAt) {
+            const today = new Date();
+            const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            return t.completedAt === dateStr;
+        }
+        return true;
+    });
 
     // Find helper
     const findTask = (list: Task[], id: string): Task | null => {
@@ -882,37 +1003,40 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
                             </button>
                         </form>
 
-                        <div style={{
-                            backgroundColor: 'var(--card-bg)',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: '12px',
-                            padding: isMobile ? '1rem' : '0 1.25rem',
-                            display: 'flex',
-                            flexDirection: isMobile ? 'row' : 'column',
-                            justifyContent: isMobile ? 'space-between' : 'center',
-                            alignItems: 'center',
-                            minWidth: '80px',
-                            flexShrink: 0,
-                        }}>
-                            <span style={{
-                                fontSize: '0.65rem',
-                                fontWeight: 700,
-                                color: 'var(--text-secondary)',
-                                letterSpacing: '0.05em',
-                                textTransform: 'uppercase',
-                                marginBottom: isMobile ? '0' : '2px'
+                        {/* GRAND TASKS counter - hidden on mobile */}
+                        {!isMobile && (
+                            <div style={{
+                                backgroundColor: 'var(--card-bg)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '12px',
+                                padding: '0 1.25rem',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                minWidth: '80px',
+                                flexShrink: 0,
                             }}>
-                                GRAND TASKS
-                            </span>
-                            <span style={{
-                                fontSize: '1.8rem',
-                                fontWeight: 700,
-                                color: 'var(--accent-color)',
-                                lineHeight: 1
-                            }}>
-                                {activeTasks.length}
-                            </span>
-                        </div>
+                                <span style={{
+                                    fontSize: '0.65rem',
+                                    fontWeight: 700,
+                                    color: 'var(--text-secondary)',
+                                    letterSpacing: '0.05em',
+                                    textTransform: 'uppercase',
+                                    marginBottom: '2px'
+                                }}>
+                                    GRAND TASKS
+                                </span>
+                                <span style={{
+                                    fontSize: '1.8rem',
+                                    fontWeight: 700,
+                                    color: 'var(--accent-color)',
+                                    lineHeight: 1
+                                }}>
+                                    {activeTasks.length}
+                                </span>
+                            </div>
+                        )}
                     </div>
 
                     {/* Layout Split: Timeline+Active | Separator | Completed */}
@@ -921,9 +1045,9 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
                         {/* 1. Active Section with Timeline */}
                         <div style={{ display: 'flex', gap: '1rem', position: 'relative', minHeight: activeTasks.length > 0 ? '50px' : '0' }}>
 
-                            {/* Timeline Container */}
+                            {/* Timeline Container - hidden on mobile */}
                             <div style={{
-                                display: activeTasks.length > 0 ? 'flex' : 'none',
+                                display: activeTasks.length > 0 && !isMobile ? 'flex' : 'none',
                                 flexDirection: 'column',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
@@ -983,6 +1107,7 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
                                                     firstMoveText={firstMoveText}
                                                     timeLeft={timeLeft}
                                                     now={now}
+                                                    isMobile={isMobile}
                                                     handlers={handlers}
                                                 />
                                             ))}
@@ -1021,6 +1146,7 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
                                             firstMoveText={firstMoveText}
                                             timeLeft={timeLeft}
                                             now={now}
+                                            isMobile={isMobile}
                                             handlers={handlers}
                                         />
                                     ))}

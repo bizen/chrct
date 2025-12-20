@@ -80,7 +80,7 @@ export function TaskStatsModal({ isOpen, onClose, theme }: TaskStatsModalProps) 
         });
 
         const today = new Date();
-        const currentMonthKey = `${today.getFullYear()} -${String(today.getMonth() + 1).padStart(2, '0')} `;
+        const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
         const tasksThisMonth = entries
             .filter(([date]) => date.startsWith(currentMonthKey))
             .reduce((acc, [, count]) => acc + count, 0);
@@ -103,7 +103,7 @@ export function TaskStatsModal({ isOpen, onClose, theme }: TaskStatsModalProps) 
         for (let i = days - 1; i >= 0; i--) {
             const date = new Date(today);
             date.setDate(date.getDate() - i);
-            const dateStr = `${date.getFullYear()} -${String(date.getMonth() + 1).padStart(2, '0')} -${String(date.getDate()).padStart(2, '0')} `;
+            const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
             const count = history[dateStr] || 0;
             const dayLabel = date.toLocaleDateString('en-US', { weekday: 'short' });
             data.push({ date: dateStr, count, dayLabel });
