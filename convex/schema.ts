@@ -13,6 +13,7 @@ export default defineSchema({
         activeSince: v.optional(v.number()),
         parentId: v.optional(v.id("tasks")),
         order: v.number(), // Lexorank or simple index. stick to simple number for now.
+        dailyRepeat: v.optional(v.boolean()), // If true, task resets to 'idle' each day
     })
         .index("by_user", ["userId"])
         .index("by_user_parent", ["userId", "parentId"]),

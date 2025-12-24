@@ -64,6 +64,7 @@ export const update = mutation({
         activeSince: v.optional(v.number()),
         parentId: v.optional(v.id("tasks")),
         order: v.optional(v.number()),
+        dailyRepeat: v.optional(v.boolean()),
         // We allow clearing fields by passing explicit null? 
         // Convex V doesn't support null easily for optional fields unless we use v.union([v.string(), v.null()])
         // But for now let's assume we just patch what is provided.

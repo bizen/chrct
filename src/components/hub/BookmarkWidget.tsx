@@ -40,6 +40,7 @@ export const BookmarkWidget: React.FC<BookmarkWidgetProps> = ({ theme }) => {
     const [newUrl, setNewUrl] = useState('');
 
     // Sync Logic: Migrate local to remote on first auth
+    // Only sync when we have confirmed that remote is empty (not just undefined/loading)
     useEffect(() => {
         if (isAuthenticated && remoteBookmarks !== undefined && remoteBookmarks.length === 0) {
             // Check if we have local bookmarks to sync
@@ -59,12 +60,17 @@ export const BookmarkWidget: React.FC<BookmarkWidgetProps> = ({ theme }) => {
         }
     }, [localBookmarks, isAuthenticated]);
 
-    // Unified list
-    const bookmarks = isAuthenticated ? (remoteBookmarks || []).map((b: any) => ({
-        id: b._id,
-        name: b.name,
-        url: b.url
-    })) : localBookmarks;
+    // Loading state - when authenticated, wait for remote data
+    const isLoading = isAuthenticated && remoteBookmarks === undefined;
+
+    // Unified list - when authenticated, ONLY show remote. Never fallback to local.
+    const bookmarks = isAuthenticated
+        ? (remoteBookmarks || []).map((b: any) => ({
+            id: b._id,
+            name: b.name,
+            url: b.url
+        }))
+        : localBookmarks;
 
     const handleAdd = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -214,7 +220,19 @@ export const BookmarkWidget: React.FC<BookmarkWidgetProps> = ({ theme }) => {
                     </a>
                 ))}
 
-                {bookmarks.length === 0 && !isAdding && (
+                {isLoading && (
+                    <div style={{
+                        padding: '1rem',
+                        textAlign: 'center',
+                        fontSize: '0.8rem',
+                        opacity: 0.5,
+                        color: theme === 'light' ? 'black' : 'white',
+                    }}>
+                        Loading...
+                    </div>
+                )}
+
+                {!isLoading && bookmarks.length === 0 && !isAdding && (
                     <div style={{
                         padding: '1rem',
                         textAlign: 'center',

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, memo } from 'react';
-import { Plus, Check, Trash2, GitBranch, GripVertical, Clock } from 'lucide-react';
+import { Plus, Check, Trash2, GitBranch, GripVertical, Clock, Repeat } from 'lucide-react';
 import {
     DndContext,
     closestCenter,
@@ -33,6 +33,7 @@ interface Task {
     activeSince?: number;
     parentId?: string;
     order?: number;
+    dailyRepeat?: boolean;
 }
 
 // Helper to format time
@@ -75,6 +76,7 @@ interface TaskRowProps {
         confirmZone: () => void;
         cancelZone: () => void;
         setFirstMoveText: (text: string) => void;
+        toggleDailyRepeat: (id: string) => void;
     };
 }
 
@@ -370,6 +372,52 @@ const TaskContent = ({
                         </button>
                     )}
 
+                    {/* Daily Repeat Badge + Toggle - hide on mobile when active to save space */}
+                    {depth === 0 && !isZoneActive && !isCompleted && !(isMobile && isThisActive) && (
+                        <>
+                            {/* Daily Badge */}
+                            {task.dailyRepeat && (
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    background: 'linear-gradient(135deg, rgba(96, 165, 250, 0.2), rgba(147, 51, 234, 0.2))',
+                                    border: '1px solid rgba(96, 165, 250, 0.4)',
+                                    padding: '2px 8px',
+                                    borderRadius: '12px',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 700,
+                                    color: 'var(--accent-color)',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.05em',
+                                    flexShrink: 0
+                                }}>
+                                    <Repeat size={10} />
+                                    <span>Daily</span>
+                                </div>
+                            )}
+                            {/* Repeat Toggle Button */}
+                            <button
+                                onClick={() => handlers.toggleDailyRepeat(task.id)}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: task.dailyRepeat ? 'var(--accent-color)' : 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                    padding: '6px',
+                                    opacity: task.dailyRepeat ? 1 : 0.5,
+                                    transition: 'all 0.2s',
+                                    borderRadius: '6px'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                title={task.dailyRepeat ? "Daily repeat ON - Click to turn off" : "Daily repeat OFF - Click to turn on"}
+                            >
+                                <Repeat size={18} />
+                            </button>
+                        </>
+                    )}
+
                     {/* Add Subtask - hide on mobile when active to save space */}
                     {depth === 0 && !isZoneActive && !isCompleted && !(isMobile && isThisActive) && (
                         <button // Add Subtask
@@ -616,6 +664,33 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
             }
         }
     }, [rawTasks, syncLocal]);
+
+    // Daily Repeat Reset Logic - Reset completed daily repeat tasks when date changes
+    useEffect(() => {
+        if (!rawTasks || rawTasks.length === 0) return;
+
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+        // Find daily repeat tasks that were completed on a previous date
+        rawTasks.forEach((task: any) => {
+            if (
+                task.dailyRepeat &&
+                task.status === 'completed' &&
+                task.completedAt &&
+                task.completedAt !== todayStr
+            ) {
+                // Reset this task to idle
+                updateTaskMutation({
+                    id: task._id as Id<"tasks">,
+                    status: 'idle',
+                    firstMove: undefined,
+                    totalTime: 0,
+                    activeSince: 0
+                }).catch(e => console.error("Failed to reset daily repeat task:", e));
+            }
+        });
+    }, [rawTasks, updateTaskMutation]);
 
     // First Move Prompt State
     const [firstMoveModal, setFirstMoveModal] = useState<{ isOpen: boolean; taskId: string | null }>({ isOpen: false, taskId: null });
@@ -879,7 +954,16 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
         deleteTaskMutation({ id: id as Id<"tasks"> });
     };
 
-    const handlers = { updateTaskStatus, updateTaskText, deleteTask, addSubtask, initiateZone, confirmZone, cancelZone, setFirstMoveText };
+    const toggleDailyRepeat = (id: string) => {
+        const task = findTask(tasks, id);
+        if (!task) return;
+        updateTaskMutation({
+            id: id as Id<"tasks">,
+            dailyRepeat: !task.dailyRepeat
+        });
+    };
+
+    const handlers = { updateTaskStatus, updateTaskText, deleteTask, addSubtask, initiateZone, confirmZone, cancelZone, setFirstMoveText, toggleDailyRepeat };
 
     const activeTasks = tasks.filter(t => t.status !== 'completed');
     const completedTasks = tasks.filter(t => {
