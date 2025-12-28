@@ -67,6 +67,8 @@ interface TaskRowProps {
     timeLeft: number;
     now: number;
     isMobile: boolean;
+    isMobileMenuOpen?: boolean;
+    onMobileMenuOpenChange?: (isOpen: boolean) => void;
     handlers: {
         updateTaskStatus: (id: string, status: 'idle' | 'active' | 'completed') => void;
         updateTaskText: (id: string, text: string) => void;
@@ -79,8 +81,6 @@ interface TaskRowProps {
         toggleDailyRepeat: (id: string) => void;
     };
 }
-
-
 
 interface TaskInputProps {
     initialText: string;
@@ -165,29 +165,45 @@ const TaskInput = memo(({ initialText, taskId, isCompleted, isActive, isMobile, 
 
 const SortableTaskRow = (props: TaskRowProps) => {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.task.id });
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const style = {
         transform: CSS.Transform.toString(transform),
         transition,
         opacity: isDragging ? 0.5 : 1,
         position: 'relative' as const,
-        zIndex: isDragging ? 999 : (props.firstMoveModal.isOpen && props.firstMoveModal.taskId === props.task.id) || props.task.status === 'active' ? 100 : 1,
+        zIndex: isMobileMenuOpen ? 9998 : (isDragging ? 999 : (props.firstMoveModal.isOpen && props.firstMoveModal.taskId === props.task.id) || props.task.status === 'active' ? 100 : 1),
     };
 
     return (
         <div ref={setNodeRef} style={style}>
-            <TaskContent {...props} dragHandleAttributes={attributes} dragHandleListeners={listeners} />
+            <TaskContent {...props} onMobileMenuOpenChange={setIsMobileMenuOpen} dragHandleAttributes={attributes} dragHandleListeners={listeners} />
         </div>
     );
 };
 
 const TaskContent = ({
     task, depth, isZoneActive, theme, firstMoveModal, firstMoveText, timeLeft, now, isMobile, handlers,
-    dragHandleAttributes, dragHandleListeners
+    onMobileMenuOpenChange, dragHandleAttributes, dragHandleListeners
 }: TaskRowProps & { dragHandleAttributes?: any, dragHandleListeners?: any }) => {
     // Memoized Input Component Logic extracted to TaskInput above
     // TaskContent now delegates input rendering to TaskInput.
-    // No local state or refs needed here anymore.
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    // Close menu on outside click
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+                setIsMobileMenuOpen(false);
+                onMobileMenuOpenChange?.(false);
+            }
+        };
+        if (isMobileMenuOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isMobileMenuOpen, onMobileMenuOpenChange]);
 
     const isThisActive = task.status === 'active';
     const isDisabled = isZoneActive && !isThisActive && task.status !== 'completed';
@@ -204,8 +220,8 @@ const TaskContent = ({
             style={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.5rem',
-                marginLeft: depth > 0 ? (isMobile ? '1rem' : `${depth * 1.5}rem`) : '0',
+                gap: isMobile ? '0.35rem' : '0.5rem',
+                marginLeft: depth > 0 ? (isMobile ? '0.5rem' : `${depth * 1.5}rem`) : '0',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
         >
@@ -214,10 +230,10 @@ const TaskContent = ({
                 style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: isMobile ? '0.5rem' : '0.75rem',
-                    padding: isMobile ? '0.75rem' : '1rem',
+                    gap: isMobile ? '0.6rem' : '0.75rem',
+                    padding: isMobile ? '0.9rem 0.3rem' : '1rem',
                     position: 'relative',
-                    borderRadius: isPrompting ? '16px 16px 0 0' : '16px',
+                    borderRadius: isPrompting ? '16px 16px 0 0' : (isMobile ? '12px' : '16px'),
                     backgroundColor: isThisActive
                         ? (theme === 'light' ? '#eff6ff' : 'rgba(96, 165, 250, 0.1)')
                         : (isCompleted
@@ -238,24 +254,143 @@ const TaskContent = ({
                         : (isCompleted ? 'none' : '0 1px 3px rgba(0,0,0,0.05)'),
                 }}
             >
-                {/* Drag Handle */}
+                {/* Drag Handle / Menu Trigger */}
                 {!isZoneActive && !isCompleted && (
-                    <div
-                        {...dragHandleAttributes}
-                        {...dragHandleListeners}
-                        style={{
-                            cursor: 'grab',
-                            display: 'flex',
-                            alignItems: 'center',
-                            color: 'var(--text-secondary)',
-                            opacity: 0.3,
-                            marginRight: '-0.25rem',
-                            transition: 'opacity 0.2s',
-                        }}
-                        title="Drag to reorder"
-                        className="hover:opacity-100"
-                    >
-                        <GripVertical size={20} />
+                    <div ref={menuRef} style={{ position: 'relative' }}>
+                        <div
+                            {...(!isMobile ? dragHandleAttributes : {})}
+                            {...(!isMobile ? dragHandleListeners : {})}
+                            onClick={isMobile ? () => {
+                                const newState = !isMobileMenuOpen;
+                                setIsMobileMenuOpen(newState);
+                                onMobileMenuOpenChange?.(newState);
+                            } : undefined}
+                            style={{
+                                cursor: isMobile ? 'pointer' : 'grab',
+                                display: 'flex',
+                                alignItems: 'center',
+                                color: 'var(--text-secondary)',
+                                opacity: isMobile ? 0.5 : 0.3,
+                                marginRight: '-0.25rem',
+                                transition: 'opacity 0.2s',
+                            }}
+                            title={isMobile ? "Open menu" : "Drag to reorder"}
+                            className="hover:opacity-100"
+                        >
+                            <GripVertical size={20} />
+                        </div>
+
+                        {/* Mobile Menu Dropdown */}
+                        {isMobile && isMobileMenuOpen && (
+                            <div style={{
+                                position: 'absolute',
+                                left: 0,
+                                top: '100%',
+                                marginTop: '4px',
+                                backgroundColor: 'var(--card-bg)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '12px',
+                                padding: '8px',
+                                minWidth: '160px',
+                                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
+                                zIndex: 9999,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '4px',
+                                animation: 'fadeIn 0.15s ease-out',
+                            }}>
+                                {/* Daily Repeat Toggle - Only for root tasks */}
+                                {depth === 0 && (
+                                    <button
+                                        onClick={() => {
+                                            handlers.toggleDailyRepeat(task.id);
+                                            setIsMobileMenuOpen(false);
+                                            onMobileMenuOpenChange?.(false);
+                                        }}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '10px',
+                                            padding: '10px 12px',
+                                            background: task.dailyRepeat ? 'rgba(96, 165, 250, 0.1)' : 'transparent',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            color: task.dailyRepeat ? 'var(--accent-color)' : 'var(--text-primary)',
+                                            cursor: 'pointer',
+                                            fontSize: '0.9rem',
+                                            fontWeight: 500,
+                                            fontFamily: 'inherit',
+                                            transition: 'all 0.2s',
+                                            width: '100%',
+                                            textAlign: 'left',
+                                        }}
+                                    >
+                                        <Repeat size={16} />
+                                        <span>{task.dailyRepeat ? 'Daily ON' : 'Daily OFF'}</span>
+                                    </button>
+                                )}
+
+                                {/* Add Subtask - Only for root tasks */}
+                                {depth === 0 && (
+                                    <button
+                                        onClick={() => {
+                                            handlers.addSubtask(task.id);
+                                            setIsMobileMenuOpen(false);
+                                            onMobileMenuOpenChange?.(false);
+                                        }}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '10px',
+                                            padding: '10px 12px',
+                                            background: 'transparent',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            color: 'var(--text-primary)',
+                                            cursor: 'pointer',
+                                            fontSize: '0.9rem',
+                                            fontWeight: 500,
+                                            fontFamily: 'inherit',
+                                            transition: 'all 0.2s',
+                                            width: '100%',
+                                            textAlign: 'left',
+                                        }}
+                                    >
+                                        <GitBranch size={16} />
+                                        <span>Add Subtask</span>
+                                    </button>
+                                )}
+
+                                {/* Delete */}
+                                <button
+                                    onClick={() => {
+                                        handlers.deleteTask(task.id);
+                                        setIsMobileMenuOpen(false);
+                                        onMobileMenuOpenChange?.(false);
+                                    }}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        padding: '10px 12px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        color: '#EF4444',
+                                        cursor: 'pointer',
+                                        fontSize: '0.9rem',
+                                        fontWeight: 500,
+                                        fontFamily: 'inherit',
+                                        transition: 'all 0.2s',
+                                        width: '100%',
+                                        textAlign: 'left',
+                                    }}
+                                >
+                                    <Trash2 size={16} />
+                                    <span>Delete</span>
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -372,55 +507,53 @@ const TaskContent = ({
                         </button>
                     )}
 
-                    {/* Daily Repeat Badge + Toggle - hide on mobile when active to save space */}
-                    {depth === 0 && !isZoneActive && !isCompleted && !(isMobile && isThisActive) && (
-                        <>
-                            {/* Daily Badge */}
-                            {task.dailyRepeat && (
-                                <div style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '3px',
-                                    background: 'linear-gradient(135deg, rgba(96, 165, 250, 0.2), rgba(147, 51, 234, 0.2))',
-                                    border: '1px solid rgba(96, 165, 250, 0.4)',
-                                    padding: '2px 8px',
-                                    borderRadius: '12px',
-                                    fontSize: '0.7rem',
-                                    fontWeight: 700,
-                                    color: 'var(--accent-color)',
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.05em',
-                                    flexShrink: 0
-                                }}>
-                                    <Repeat size={10} />
-                                    <span>Daily</span>
-                                </div>
-                            )}
-                            {/* Repeat Toggle Button */}
-                            <button
-                                onClick={() => handlers.toggleDailyRepeat(task.id)}
-                                style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    color: task.dailyRepeat ? 'var(--accent-color)' : 'var(--text-secondary)',
-                                    cursor: 'pointer',
-                                    padding: '6px',
-                                    opacity: task.dailyRepeat ? 1 : 0.5,
-                                    transition: 'all 0.2s',
-                                    borderRadius: '6px'
-                                }}
-                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                title={task.dailyRepeat ? "Daily repeat ON - Click to turn off" : "Daily repeat OFF - Click to turn on"}
-                            >
-                                <Repeat size={18} />
-                            </button>
-                        </>
+                    {/* Daily Badge - Show on both mobile and desktop when dailyRepeat is enabled */}
+                    {depth === 0 && task.dailyRepeat && !isZoneActive && !isCompleted && (
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: isMobile ? '0px' : '3px',
+                            background: 'linear-gradient(135deg, rgba(96, 165, 250, 0.2), rgba(147, 51, 234, 0.2))',
+                            border: '1px solid rgba(96, 165, 250, 0.4)',
+                            padding: isMobile ? '4px' : '2px 8px',
+                            borderRadius: isMobile ? '6px' : '12px',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            color: 'var(--accent-color)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            flexShrink: 0
+                        }}>
+                            <Repeat size={isMobile ? 12 : 10} />
+                            {!isMobile && <span>Daily</span>}
+                        </div>
                     )}
 
-                    {/* Add Subtask - hide on mobile when active to save space */}
-                    {depth === 0 && !isZoneActive && !isCompleted && !(isMobile && isThisActive) && (
-                        <button // Add Subtask
+                    {/* Desktop Only: Repeat Toggle Button */}
+                    {!isMobile && depth === 0 && !isZoneActive && !isCompleted && (
+                        <button
+                            onClick={() => handlers.toggleDailyRepeat(task.id)}
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                color: task.dailyRepeat ? 'var(--accent-color)' : 'var(--text-secondary)',
+                                cursor: 'pointer',
+                                padding: '6px',
+                                opacity: task.dailyRepeat ? 1 : 0.5,
+                                transition: 'all 0.2s',
+                                borderRadius: '6px'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            title={task.dailyRepeat ? "Daily repeat ON - Click to turn off" : "Daily repeat OFF - Click to turn on"}
+                        >
+                            <Repeat size={18} />
+                        </button>
+                    )}
+
+                    {/* Desktop Only: Add Subtask */}
+                    {!isMobile && depth === 0 && !isZoneActive && !isCompleted && (
+                        <button
                             onClick={() => handlers.addSubtask(task.id)}
                             style={{
                                 background: 'none',
@@ -440,8 +573,8 @@ const TaskContent = ({
                         </button>
                     )}
 
-                    {/* Delete - hide on mobile when active to save space */}
-                    {!isZoneActive && !isCompleted && !(isMobile && isThisActive) && ( // Delete - only for editing flow
+                    {/* Desktop Only: Delete */}
+                    {!isMobile && !isZoneActive && !isCompleted && (
                         <button
                             onClick={() => handlers.deleteTask(task.id)}
                             style={{
@@ -466,6 +599,7 @@ const TaskContent = ({
                             <Trash2 size={18} />
                         </button>
                     )}
+
                     {/* Delete button removed for completed tasks as per requirement */}
                 </div>
             </div>
@@ -538,7 +672,7 @@ const TaskContent = ({
             {/* Subtasks */}
             {task.subtasks && task.subtasks.length > 0 && (
                 <SortableContext items={task.subtasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0.35rem' : '0.5rem' }}>
                         {task.subtasks.map(subtask => (
                             <SortableTaskRow
                                 key={subtask.id}
@@ -1016,12 +1150,12 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
         <div style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: '2rem',
+            gap: isMobile ? '1.5rem' : '2rem',
             flex: 1,
             width: '100%',
-            maxWidth: '800px',
+            maxWidth: isMobile ? '100%' : '800px',
             margin: '0 auto',
-            padding: '1rem'
+            padding: isMobile ? '0.3rem' : '1rem'
         }} className="animate-in">
 
             {!isAuthenticated && (
@@ -1042,7 +1176,7 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
             {isAuthenticated && (
                 <>
                     <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '1rem', alignItems: 'stretch' }}>
-                        <form onSubmit={addTask} style={{ display: 'flex', gap: '1rem', flex: 1 }}>
+                        <form onSubmit={addTask} style={{ display: 'flex', gap: isMobile ? '0.75rem' : '1rem', flex: 1 }}>
                             <input
                                 type="text"
                                 value={newTask}
@@ -1051,12 +1185,12 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
                                 disabled={isAnyTaskActive(tasks)}
                                 style={{
                                     flex: 1,
-                                    padding: '1rem 1.5rem',
+                                    padding: isMobile ? '0.85rem 1rem' : '1rem 1.5rem',
                                     backgroundColor: 'var(--card-bg)',
                                     border: '1px solid var(--border-color)',
-                                    borderRadius: '12px',
+                                    borderRadius: isMobile ? '10px' : '12px',
                                     color: 'var(--text-primary)',
-                                    fontSize: '1.2rem',
+                                    fontSize: isMobile ? '1rem' : '1.2rem',
                                     outline: 'none',
                                     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                                     fontFamily: 'inherit',
@@ -1071,8 +1205,9 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
                                 style={{
                                     background: 'var(--accent-color)',
                                     border: 'none',
-                                    borderRadius: '12px',
-                                    width: '64px',
+                                    borderRadius: isMobile ? '10px' : '12px',
+                                    width: isMobile ? '52px' : '64px',
+                                    height: isMobile ? '52px' : 'auto',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
@@ -1080,10 +1215,11 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
                                     cursor: isAnyTaskActive(tasks) ? 'not-allowed' : 'pointer',
                                     transition: 'all 0.2s',
                                     opacity: isAnyTaskActive(tasks) ? 0.3 : 1,
+                                    flexShrink: 0,
                                 }}
                                 className="hover:opacity-90 active:scale-95"
                             >
-                                <Plus size={32} />
+                                <Plus size={isMobile ? 24 : 32} />
                             </button>
                         </form>
 
@@ -1179,7 +1315,7 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
                                         items={activeTasks.map(t => t.id)}
                                         strategy={verticalListSortingStrategy}
                                     >
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0.5rem' : '1rem' }}>
                                             {activeTasks.map(task => (
                                                 <SortableTaskRow
                                                     key={task.id}
@@ -1218,7 +1354,7 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
                                     <div style={{ height: '1px', flex: 1, backgroundColor: 'var(--border-color)' }}></div>
                                 </div>
 
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', opacity: 0.7 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0.35rem' : '0.5rem', opacity: 0.7 }}>
                                     {completedTasks.map(task => (
                                         <SortableTaskRow
                                             key={task.id}
