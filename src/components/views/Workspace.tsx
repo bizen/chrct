@@ -76,6 +76,10 @@ export function Workspace() {
 
   // Audio state
   const [isPlaying, setIsPlaying] = useState(false);
+  const [musicVolume, setMusicVolume] = useState(() => {
+    const saved = localStorage.getItem('chrct_music_volume');
+    return saved ? parseFloat(saved) : 0.1;
+  });
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // View Mode state
@@ -95,6 +99,7 @@ export function Workspace() {
   useEffect(() => {
     audioRef.current = new Audio(chirunoMp3);
     audioRef.current.loop = true;
+    audioRef.current.volume = musicVolume;
 
     return () => {
       if (audioRef.current) {
@@ -113,6 +118,14 @@ export function Workspace() {
       audioRef.current.play().catch(e => console.error("Audio playback failed:", e));
     }
     setIsPlaying(!isPlaying);
+  };
+
+  const handleVolumeChange = (newVolume: number) => {
+    setMusicVolume(newVolume);
+    if (audioRef.current) {
+      audioRef.current.volume = newVolume;
+    }
+    localStorage.setItem('chrct_music_volume', newVolume.toString());
   };
 
   // Auto-save to localStorage
@@ -651,6 +664,8 @@ export function Workspace() {
             setTheme={setTheme}
             isMusicPlaying={isPlaying}
             toggleMusic={toggleMusic}
+            musicVolume={musicVolume}
+            onVolumeChange={handleVolumeChange}
             viewMode={viewMode}
             text={text}
             handleTextChange={handleTextChange}
