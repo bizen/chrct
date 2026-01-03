@@ -25,6 +25,7 @@ import { RefreshCw } from 'lucide-react';
 // Utils / Hooks
 import { playTypeSound } from './utils/sound';
 import { useStreak } from './hooks/useStreak';
+import { useCloudSync } from './hooks/useCloudSync';
 
 function App() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -48,6 +49,9 @@ function App() {
   const [hasTyped, setHasTyped] = useState(false);
 
   const { streak, isCompletedToday, dailyProgress } = useStreak();
+
+  // Cloud Sync
+  const { saveStatus } = useCloudSync(text, setText);
 
   // Theme state - default to wallpaper
   const [theme, setTheme] = useState<'dark' | 'light' | 'wallpaper'>(() => {
@@ -596,6 +600,7 @@ function App() {
                 handleTextChange={handleTextChange}
                 stats={stats}
                 isZenMode={isZenMode}
+                saveStatus={saveStatus}
               />
             ) : (
               <TaskListView theme={theme} />
@@ -669,7 +674,9 @@ function App() {
             viewMode={viewMode}
             text={text}
             handleTextChange={handleTextChange}
+            handleTextChange={handleTextChange}
             stats={stats}
+            saveStatus={saveStatus}
           />
           {/* Right Hub Sidebar */}
           <RightHubSidebar

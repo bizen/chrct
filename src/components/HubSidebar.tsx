@@ -9,6 +9,7 @@ import { TaskListWidget } from './hub/TaskListWidget';
 import { CharacterCountWidget } from './hub/CharacterCountWidget';
 import { PerplexityWidget } from './hub/PerplexityWidget';
 import { BookmarkWidget } from './hub/BookmarkWidget';
+import { SyncStatus } from '../hooks/useCloudSync';
 
 interface HubSidebarProps {
     isOpen: boolean;
@@ -29,6 +30,7 @@ interface HubSidebarProps {
         paragraphs: number;
         spaces: number;
     };
+    saveStatus?: SyncStatus;
 }
 
 export function HubSidebar({
@@ -43,7 +45,8 @@ export function HubSidebar({
     viewMode,
     text,
     handleTextChange,
-    stats
+    stats,
+    saveStatus
 }: HubSidebarProps) {
     const [weather, setWeather] = useState<{ temp: number; code: number; city: string } | null>(null);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -174,6 +177,7 @@ export function HubSidebar({
                             handleTextChange={handleTextChange}
                             stats={stats}
                             theme={theme}
+                            saveStatus={saveStatus}
                         />
                     )}
 

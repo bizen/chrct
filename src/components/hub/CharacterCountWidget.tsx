@@ -1,3 +1,4 @@
+import type { SyncStatus } from '../../hooks/useCloudSync';
 
 interface CharacterCountWidgetProps {
     text: string;
@@ -10,13 +11,19 @@ interface CharacterCountWidgetProps {
         spaces: number;
     };
     theme: 'dark' | 'light' | 'wallpaper';
+    saveStatus?: SyncStatus;
 }
 
-export function CharacterCountWidget({ text, handleTextChange, stats, theme }: CharacterCountWidgetProps) {
+export function CharacterCountWidget({ text, handleTextChange, stats, theme, saveStatus = 'synced' }: CharacterCountWidgetProps) {
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', flexShrink: 0 }}>
-            <h3 style={{ fontSize: '0.75rem', fontWeight: 600, color: theme === 'light' ? '#6b7280' : 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginLeft: '0.25rem' }}>
-                Character Count
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', flexShrink: 0, position: 'relative' }}>
+            <h3 style={{ fontSize: '0.75rem', fontWeight: 600, color: theme === 'light' ? '#6b7280' : 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginLeft: '0.25rem', display: 'flex', justifyContent: 'space-between' }}>
+                <span>Character Count</span>
+                {saveStatus && (
+                    <span style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 400, color: saveStatus === 'offline' ? 'var(--accent-color)' : 'inherit' }}>
+                        {saveStatus === 'saving' ? 'Saving...' : (saveStatus === 'offline' ? 'Offline' : 'Synced')}
+                    </span>
+                )}
             </h3>
 
             <textarea
