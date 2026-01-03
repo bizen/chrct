@@ -17,6 +17,8 @@ interface HubSidebarProps {
     setTheme: (theme: 'dark' | 'light' | 'wallpaper') => void;
     isMusicPlaying: boolean;
     toggleMusic: () => void;
+    musicVolume: number;
+    onVolumeChange: (volume: number) => void;
     viewMode: 'charCount' | 'taskList';
     text: string;
     handleTextChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
@@ -36,6 +38,8 @@ export function HubSidebar({
     setTheme,
     isMusicPlaying,
     toggleMusic,
+    musicVolume,
+    onVolumeChange,
     viewMode,
     text,
     handleTextChange,
@@ -174,7 +178,13 @@ export function HubSidebar({
                     )}
 
                     {/* Removed TaskCommitWidget */}
-                    <MusicWidget theme={theme} isMusicPlaying={isMusicPlaying} toggleMusic={toggleMusic} />
+                    <MusicWidget
+                        theme={theme}
+                        isMusicPlaying={isMusicPlaying}
+                        toggleMusic={toggleMusic}
+                        musicVolume={musicVolume}
+                        onVolumeChange={onVolumeChange}
+                    />
                     <ThemeWidget theme={theme} setTheme={setTheme} />
 
                     {isMobile && (
