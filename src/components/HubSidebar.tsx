@@ -9,7 +9,7 @@ import { TaskListWidget } from './hub/TaskListWidget';
 import { CharacterCountWidget } from './hub/CharacterCountWidget';
 import { PerplexityWidget } from './hub/PerplexityWidget';
 import { BookmarkWidget } from './hub/BookmarkWidget';
-import { SyncStatus } from '../hooks/useCloudSync';
+import type { SyncStatus } from '../hooks/useCloudSync';
 
 interface HubSidebarProps {
     isOpen: boolean;

@@ -8,11 +8,13 @@ export type SyncStatus = 'synced' | 'saving' | 'offline';
 
 export function useCloudSync(
     text: string,
-    setText: (text: string) => void
+    setText: (text: string) => void,
+    isLicenseActive: boolean
 ) {
     const { isAuthenticated } = useConvexAuth();
-    // Use "skip" if not authenticated to avoid cached query issues or errors
-    const remoteDoc = useQuery(api.sync.getDocument, isAuthenticated ? {} : "skip");
+    // Use "skip" if not authenticated OR not licensed
+    const skipQuery = !isAuthenticated || !isLicenseActive;
+    const remoteDoc = useQuery(api.sync.getDocument, skipQuery ? "skip" : {});
     const saveDocument = useMutation(api.sync.saveDocument);
     const syncDocument = useMutation(api.sync.syncDocument);
 
@@ -21,8 +23,10 @@ export function useCloudSync(
     const [saveStatus, setSaveStatus] = useState<SyncStatus>('synced');
 
     // Initial Sync Logic with Offline Support
+    // Initial Sync Logic with Offline Support
     useEffect(() => {
         if (!isAuthenticated) return;
+        if (!isLicenseActive) return; // Block sync if not active
         if (remoteDoc === undefined) return; // Loading from Convex
         if (hasInitialized) return; // Already handled initial sync
 
@@ -101,7 +105,7 @@ export function useCloudSync(
 
     // Save to Cloud on Change (Debounced)
     useEffect(() => {
-        if (!isAuthenticated || !hasInitialized) return;
+        if (!isAuthenticated || !hasInitialized || !isLicenseActive) return;
 
         // Don't save if hasn't changed from last acknowledged sync (optimization)
         const lastSyncedText = localStorage.getItem(LAST_SYNCED_KEY);

@@ -1,7 +1,7 @@
 import React from 'react';
 import { StatCard } from '../StatCard';
 import { useConvexAuth } from 'convex/react';
-import { SyncStatus } from '../../hooks/useCloudSync';
+import type { SyncStatus } from '../../hooks/useCloudSync';
 
 interface CharacterCountViewProps {
     text: string;

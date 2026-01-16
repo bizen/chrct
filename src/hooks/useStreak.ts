@@ -10,9 +10,10 @@ const getDateString = (d: Date) => {
     return `${year}-${month}-${day}`;
 };
 
-export const useStreak = () => {
+export const useStreak = (isLicenseActive: boolean = true) => {
     const { isAuthenticated } = useConvexAuth();
-    const tasks = useQuery(api.tasks.get, isAuthenticated ? {} : "skip") || [];
+    const skipQuery = !isAuthenticated || !isLicenseActive;
+    const tasks = useQuery(api.tasks.get, skipQuery ? "skip" : {}) || [];
 
     const { streak, isCompletedToday, dailyProgress, history } = useMemo(() => {
         // Build history map from completed tasks

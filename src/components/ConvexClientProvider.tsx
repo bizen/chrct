@@ -7,7 +7,15 @@ const convexUrl = import.meta.env.VITE_CONVEX_URL as string;
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string;
 
 // Safely initialize client only if URL is present
-const convex = convexUrl ? new ConvexReactClient(convexUrl) : undefined;
+let convex: ConvexReactClient | undefined;
+try {
+    if (convexUrl) {
+        convex = new ConvexReactClient(convexUrl);
+    }
+} catch (error) {
+    console.error("Failed to initialize Convex client:", error);
+    // convex remains undefined, which will trigger the error UI below
+}
 
 export function ConvexClientProvider({ children }: { children: ReactNode }) {
     if (!convex || !publishableKey) {

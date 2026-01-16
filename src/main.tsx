@@ -12,12 +12,14 @@ const Main = () => {
   // Localhost: /app -> App, otherwise LandingPage
   const hostname = window.location.hostname;
   const pathname = window.location.pathname;
+  console.log("Main Render: Hostname =", hostname, "Path =", pathname);
 
   let showApp = false;
 
   if (hostname.startsWith('app.')) {
     showApp = true;
   } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    // Localhost: Show App only if path starts with /app
     if (pathname.startsWith('/app')) {
       showApp = true;
     }
