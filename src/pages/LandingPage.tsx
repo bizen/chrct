@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Sparkles, ArrowRight, Zap, Layout, Shield, FileText, Star, ChevronDown, Check, Globe, Coffee, Heart } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Sparkles, ArrowRight, Zap, Layout, Shield, FileText, Star, ChevronDown } from 'lucide-react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { PricingCards } from '../components/PricingCards';
 import cirnoImg from '../assets/cirno.png';
@@ -119,7 +119,7 @@ export const LandingPage = () => {
                     <motion.button onClick={handleOpenApp}
                         whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                         style={{
-                            background: '#60A5FA', color: 'white', border: 'none', padding: '0.7rem 1.5rem',
+                            background: '#60A5FA', color: 'white', padding: '0.7rem 1.5rem',
                             borderRadius: '12px', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
                             boxShadow: '0 0 20px rgba(167, 139, 250, 0.4), 0 0 10px rgba(251, 191, 36, 0.2)',
                             border: '1px solid rgba(167, 139, 250, 0.3)',
@@ -181,7 +181,7 @@ export const LandingPage = () => {
                         whileHover={{ scale: 1.05, boxShadow: '0 0 40px rgba(167, 139, 250, 0.6), 0 0 20px rgba(251, 191, 36, 0.4)' }} whileTap={{ scale: 0.95 }}
                         style={{
                             display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#60A5FA', color: 'white',
-                            border: 'none', padding: '1rem 2.5rem', borderRadius: '16px', fontSize: '1.1rem', fontWeight: 600,
+                            padding: '1rem 2.5rem', borderRadius: '16px', fontSize: '1.1rem', fontWeight: 600,
                             cursor: 'pointer', boxShadow: '0 0 30px rgba(167, 139, 250, 0.4), 0 0 15px rgba(251, 191, 36, 0.2)',
                             border: '1px solid rgba(167, 139, 250, 0.3)',
                             fontFamily: "'Space Grotesk', sans-serif"
