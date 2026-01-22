@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as license from "../license.js";
 import type * as sync from "../sync.js";
 import type * as tasks from "../tasks.js";
 
@@ -18,6 +19,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  license: typeof license;
   sync: typeof sync;
   tasks: typeof tasks;
 }>;

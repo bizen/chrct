@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useAction } from 'convex/react';
+import { api } from '../../convex/_generated/api';
 
 const LS_LICENSE_KEY = 'chrct_license_key';
 const LS_INSTANCE_ID = 'chrct_instance_id';
@@ -8,6 +10,9 @@ export function useLicense() {
     const [isChecking, setIsChecking] = useState<boolean>(true); // Initial check
     const [isActivating, setIsActivating] = useState<boolean>(false); // Activation action
     const [error, setError] = useState<string | null>(null);
+
+    const activateAction = useAction(api.license.activate);
+    const validateAction = useAction(api.license.validate);
 
     useEffect(() => {
         const checkLicense = async () => {
@@ -21,40 +26,20 @@ export function useLicense() {
             }
 
             try {
-                // Use validate endpoint to check status without incrementing instance count
-                // (unless we need to re-activate)
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-
-                const response = await fetch('https://api.lemonsqueezy.com/v1/licenses/validate', {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        license_key: key,
-                        instance_id: instanceId || undefined
-                    }),
-                    signal: controller.signal
+                // Use validate action via Convex to avoid CORS
+                const result = await validateAction({
+                    key,
+                    instanceId: instanceId || undefined
                 });
-                clearTimeout(timeoutId);
 
-                const data = await response.json();
-
-                if (data.valid && data.license_key.status !== 'expired') {
+                if (result.success && result.data.valid && result.data.license_key.status !== 'expired') {
                     setIsActivated(true);
                 } else {
                     // If invalid or expired
                     setIsActivated(false);
-                    // Optional: Clear storage if definitively invalid
-                    // localStorage.removeItem(LS_LICENSE_KEY);
-                    // localStorage.removeItem(LS_INSTANCE_ID);
                 }
             } catch (err) {
                 console.error("License validation failed", err);
-                // If network error, we might want to allow access if previously valid?
-                // For strict locking, we set false. Given user requirements of "purchase ... to proceed", strict is safe default.
                 setIsActivated(false);
             } finally {
                 setIsChecking(false);
@@ -62,25 +47,25 @@ export function useLicense() {
         };
 
         checkLicense();
-    }, []);
+    }, []); // actions are stable
 
     const activateLicense = async (key: string) => {
         setIsActivating(true);
         setError(null);
         try {
-            const response = await fetch('https://api.lemonsqueezy.com/v1/licenses/activate', {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    license_key: key,
-                    instance_name: 'chrct-web'
-                })
+            const result = await activateAction({
+                key,
+                instanceName: 'chrct-web'
             });
 
-            const data = await response.json();
+            if (!result.success) {
+                console.error("Activation failed:", result.error);
+                setError(typeof result.error === 'string' ? result.error : 'Activation failed');
+                setIsActivated(false);
+                return false;
+            }
+
+            const data = result.data;
 
             if (data.activated && data.license_key.status !== 'expired') {
                 setIsActivated(true);
@@ -93,7 +78,8 @@ export function useLicense() {
                 return false;
             }
         } catch (err) {
-            setError('Connection failed. Please check your internet.');
+            console.error("Activation error:", err);
+            setError(`Connection failed: ${err instanceof Error ? err.message : String(err)}`);
             return false;
         } finally {
             setIsActivating(false);
