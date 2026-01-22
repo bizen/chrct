@@ -4,7 +4,7 @@ import { v } from "convex/values";
 
 export const activate = action({
     args: { key: v.string(), instanceName: v.string() },
-    handler: async (ctx, args) => {
+    handler: async (_ctx, args) => {
         const response = await fetch('https://api.lemonsqueezy.com/v1/licenses/activate', {
             method: 'POST',
             headers: {
@@ -35,7 +35,7 @@ export const activate = action({
 
 export const validate = action({
     args: { key: v.string(), instanceId: v.optional(v.string()) },
-    handler: async (ctx, args) => {
+    handler: async (_ctx, args) => {
         const response = await fetch('https://api.lemonsqueezy.com/v1/licenses/validate', {
             method: 'POST',
             headers: {
