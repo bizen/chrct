@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, BarChart } from 'lucide-react';
-import { useUser } from "@clerk/clerk-react";
-import { PerplexityWidget } from './hub/PerplexityWidget';
-import { BookmarkWidget } from './hub/BookmarkWidget';
-import { TaskStatsModal } from './TaskStatsModal';
+import { X } from 'lucide-react';
+import { TaskChainWidget } from './hub/TaskChainWidget';
 
 interface RightHubSidebarProps {
     isOpen: boolean;
@@ -17,8 +14,6 @@ export function RightHubSidebar({
     theme,
 }: RightHubSidebarProps) {
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-    const { isSignedIn } = useUser();
-    const [isStatsOpen, setIsStatsOpen] = useState(false);
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -35,7 +30,7 @@ export function RightHubSidebar({
                 position: 'fixed',
                 top: 0,
                 bottom: 'auto',
-                right: 0, // Fixed to right
+                right: 0,
                 height: '100vh',
                 width: 'auto',
                 zIndex: 40,
@@ -55,7 +50,7 @@ export function RightHubSidebar({
                     maxHeight: 'calc(100vh - 4rem)',
                     position: 'absolute',
                     top: '6rem',
-                    right: '1rem', // Specific to Right Sidebar
+                    right: '1rem',
                     backgroundColor: theme === 'light' ? 'rgba(255, 255, 255, 0.8)' : 'rgba(29, 35, 51, 0.6)',
                     backdropFilter: 'blur(16px)',
                     WebkitBackdropFilter: 'blur(16px)',
@@ -67,7 +62,6 @@ export function RightHubSidebar({
                     gap: '1rem',
                     padding: '1.5rem',
                     overflowY: 'auto',
-                    // Slide from Right
                     transform: isOpen
                         ? 'translateX(0)'
                         : 'translateX(120%)',
@@ -75,10 +69,7 @@ export function RightHubSidebar({
                     color: theme === 'light' ? '#1f2937' : 'white',
                 }}>
                 {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-
-
-                    {/* Optional Close Button - might be redundant if the main toggle controls both, but good to have */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
                     <button
                         onClick={onClose}
                         style={{
@@ -98,38 +89,9 @@ export function RightHubSidebar({
                     </button>
                 </div>
 
-                <PerplexityWidget theme={theme} />
-                <BookmarkWidget theme={theme} />
-
-                {/* Signed In Only: Task Stats Button */}
-                {isSignedIn && (
-                    <button
-                        onClick={() => setIsStatsOpen(true)}
-                        style={{
-                            marginTop: 'auto', // Push to bottom if container has height, otherwise just at end
-                            width: '100%',
-                            padding: '0.75rem',
-                            borderRadius: '12px',
-                            border: 'none',
-                            backgroundColor: theme === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)',
-                            color: theme === 'light' ? '#374151' : 'white',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '0.5rem',
-                            fontWeight: 600,
-                            transition: 'all 0.2s',
-                        }}
-                        className="hover-bg"
-                    >
-                        <BarChart size={18} />
-                        View Task Stats
-                    </button>
-                )}
+                {/* Task Chain */}
+                <TaskChainWidget theme={theme} />
             </div>
-
-            <TaskStatsModal isOpen={isStatsOpen} onClose={() => setIsStatsOpen(false)} theme={theme} />
         </div>
     );
 }

@@ -15,13 +15,42 @@ export const useStreak = (isLicenseActive: boolean = true) => {
     const skipQuery = !isAuthenticated || !isLicenseActive;
     const tasks = useQuery(api.tasks.get, skipQuery ? "skip" : {}) || [];
 
-    const { streak, isCompletedToday, dailyProgress, history } = useMemo(() => {
+    const { streak, isCompletedToday, dailyProgress, history, weeklyHours } = useMemo(() => {
         // Build history map from completed tasks
         const historyMap: Record<string, number> = {};
 
+        // Weekly Calculation (Last 7 Days)
+        const now = new Date();
+        const startOfPeriod = new Date(now);
+        startOfPeriod.setDate(startOfPeriod.getDate() - 6); // 7 days window including today
+        startOfPeriod.setHours(0, 0, 0, 0);
+
+        let weeklyMs = 0;
+
         tasks.forEach((t: any) => {
+            // 1. Streak History Map
             if (t.status === 'completed' && t.completedAt) {
                 historyMap[t.completedAt] = (historyMap[t.completedAt] || 0) + 1;
+            }
+
+            // 2. Weekly Hours Calculation
+            // Add time from tasks completed IN THE LAST 7 DAYS
+            if (t.status === 'completed' && t.completedAt && t.totalTime) {
+                const completedDate = new Date(t.completedAt);
+                // Reset completedDate time to ensure comparison by date
+                completedDate.setHours(0, 0, 0, 0);
+
+                if (completedDate >= startOfPeriod) {
+                    weeklyMs += t.totalTime;
+                }
+            } else if (t.status !== 'completed' && t.totalTime) {
+                // Add time from ALL active/idle tasks (assuming they are current)
+                weeklyMs += t.totalTime;
+            }
+
+            // Add currently elapsed active time
+            if (t.status === 'active' && t.activeSince) {
+                weeklyMs += (Date.now() - t.activeSince);
             }
         });
 
@@ -53,13 +82,16 @@ export const useStreak = (isLicenseActive: boolean = true) => {
             }
         }
 
+        const weeklyHrs = Math.floor(weeklyMs / (1000 * 60 * 60)); // Integer hours
+
         return {
             streak: currentStreak,
             isCompletedToday: completedToday,
             dailyProgress: tasksToday,
-            history: historyMap
+            history: historyMap,
+            weeklyHours: weeklyHrs
         };
     }, [tasks]);
 
-    return { streak, isCompletedToday, dailyProgress, history };
+    return { streak, isCompletedToday, dailyProgress, history, weeklyHours };
 };

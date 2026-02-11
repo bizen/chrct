@@ -1,26 +1,27 @@
 import { useState, useEffect } from 'react';
-import { X, LayoutGrid } from 'lucide-react';
+import { LayoutGrid, BarChart, Target, Rocket, ChevronLeft, ChevronRight, Pen } from 'lucide-react';
+import { useUser } from "@clerk/clerk-react";
 import { ClockWidget } from './hub/ClockWidget';
 import { ThemeWidget } from './hub/ThemeWidget';
 import { InfoWidget } from './hub/InfoWidget';
 import { MusicWidget } from './hub/MusicWidget';
-
 import { TaskListWidget } from './hub/TaskListWidget';
 import { CharacterCountWidget } from './hub/CharacterCountWidget';
-import { PerplexityWidget } from './hub/PerplexityWidget';
-import { BookmarkWidget } from './hub/BookmarkWidget';
+import { TaskStatsModal } from './TaskStatsModal';
 import type { SyncStatus } from '../hooks/useCloudSync';
 
 interface HubSidebarProps {
-    isOpen: boolean;
-    onClose: () => void;
     theme: 'dark' | 'light' | 'wallpaper';
     setTheme: (theme: 'dark' | 'light' | 'wallpaper') => void;
     isMusicPlaying: boolean;
     toggleMusic: () => void;
     musicVolume: number;
     onVolumeChange: (volume: number) => void;
-    viewMode: 'charCount' | 'taskList';
+
+    // Updated Navigation Props
+    activeTab: 'super_goal' | 'launchpad' | 'writing';
+    onTabChange: (tab: 'super_goal' | 'launchpad' | 'writing') => void;
+
     text: string;
     handleTextChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
     stats: {
@@ -34,15 +35,14 @@ interface HubSidebarProps {
 }
 
 export function HubSidebar({
-    isOpen,
-    onClose,
     theme,
     setTheme,
     isMusicPlaying,
     toggleMusic,
     musicVolume,
     onVolumeChange,
-    viewMode,
+    activeTab,
+    onTabChange,
     text,
     handleTextChange,
     stats,
@@ -50,12 +50,24 @@ export function HubSidebar({
 }: HubSidebarProps) {
     const [weather, setWeather] = useState<{ temp: number; code: number; city: string } | null>(null);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    const { isSignedIn } = useUser();
+    const [isStatsOpen, setIsStatsOpen] = useState(false);
+
+    // New States for the Hub Structure
+    const [isExpanded, setIsExpanded] = useState(() => {
+        const saved = localStorage.getItem('chrct_hub_expanded');
+        return saved ? JSON.parse(saved) : true;
+    });
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
+
+    useEffect(() => {
+        localStorage.setItem('chrct_hub_expanded', JSON.stringify(isExpanded));
+    }, [isExpanded]);
 
     useEffect(() => {
         const fetchWeather = async (lat: number, lon: number, city: string) => {
@@ -89,117 +101,219 @@ export function HubSidebar({
             fetchWeather(defaultLocation.lat, defaultLocation.lon, defaultLocation.city);
         }
     }, []);
+
+    // Theme styles helper
+    const glassStyle = {
+        backgroundColor: theme === 'light' ? 'rgba(255, 255, 255, 0.8)' : 'rgba(29, 35, 51, 0.6)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        borderColor: theme === 'light' ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.08)',
+        color: theme === 'light' ? '#1f2937' : 'white',
+    };
+
+    const iconButtonStyle = (isActive: boolean) => ({
+        width: '40px',
+        height: '40px',
+        borderRadius: '12px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: isActive ? (theme === 'light' ? '#2563eb' : '#60A5FA') : (theme === 'light' ? '#9ca3af' : 'rgba(255,255,255,0.4)'),
+        backgroundColor: isActive ? (theme === 'light' ? 'rgba(37, 99, 235, 0.1)' : 'rgba(96, 165, 250, 0.1)') : 'transparent',
+        cursor: 'pointer',
+        transition: 'all 0.2s ease',
+        border: 'none',
+        outline: 'none',
+    });
+
+    if (isMobile) return null; // Simplified for mobile for now based on request focusing on layout
+
     return (
         <>
-
-
-            {/* Sidebar Container (Fixed Overlay) */}
             <div
                 style={{
                     position: 'fixed',
-                    top: isMobile ? 'auto' : 0,
-                    bottom: isMobile ? 0 : 'auto',
-                    left: 0,
-                    height: isMobile ? 'auto' : '100vh',
-                    width: isMobile ? '100%' : 'auto',
-                    zIndex: 40,
-                    pointerEvents: 'none', // Allow clicks through the container
+                    top: '6rem', // Match App padding/header
+                    left: '1rem',
+                    bottom: '2rem',
                     display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: isMobile ? 'flex-end' : 'center',
+                    alignItems: 'flex-start',
+                    gap: '1rem',
+                    zIndex: 40,
+                    height: 'calc(100vh - 8rem)',
+                    pointerEvents: 'none', // Allow clicking through empty space
                 }}
             >
-                {/* Inner Slate */}
+                {/* 1. Left Icon Strip (Always Visible) */}
                 <div
                     className="no-scrollbar"
                     style={{
-                        pointerEvents: 'auto', // Re-enable clicks for the slate
-                        width: isMobile ? '100%' : '310px',
-                        height: isMobile ? '60vh' : 'auto',
-                        maxHeight: isMobile ? '85vh' : 'calc(100vh - 4rem)',
-                        position: isMobile ? 'relative' : 'absolute',
-                        top: isMobile ? 'auto' : '6rem',
-                        left: isMobile ? '0' : '1rem',
-                        bottom: isMobile ? '0' : '2rem',
-                        backgroundColor: theme === 'light' ? 'rgba(255, 255, 255, 0.8)' : 'rgba(29, 35, 51, 0.6)',
-                        backdropFilter: 'blur(16px)',
-                        WebkitBackdropFilter: 'blur(16px)',
-                        borderRadius: isMobile ? '24px 24px 0 0' : '24px',
-                        border: theme === 'light' ? '1px solid rgba(0, 0, 0, 0.1)' : '1px solid rgba(255, 255, 255, 0.08)',
-                        borderBottom: isMobile ? 'none' : (theme === 'light' ? '1px solid rgba(0, 0, 0, 0.1)' : '1px solid rgba(255, 255, 255, 0.08)'),
-                        boxShadow: theme === 'light' ? '0 10px 40px -10px rgba(0, 0, 0, 0.1)' : '0 10px 40px -10px rgba(0, 0, 0, 0.3)',
+                        ...glassStyle,
+                        pointerEvents: 'auto',
+                        width: '60px',
+                        height: '100%',
+                        borderRadius: '24px',
+                        border: `1px solid ${glassStyle.borderColor}`,
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '1rem', // Reduced gap
+                        alignItems: 'center',
+                        padding: '1rem 0',
+                        gap: '1rem',
+                    }}
+                >
+                    {/* Super Goal Icon */}
+                    <button
+                        style={iconButtonStyle(activeTab === 'super_goal')}
+                        onClick={() => onTabChange('super_goal')}
+                        title="Super Goals"
+                    >
+                        <Target size={24} />
+                    </button>
+
+                    {/* Launchpad Icon */}
+                    <button
+                        style={iconButtonStyle(activeTab === 'launchpad')}
+                        onClick={() => onTabChange('launchpad')}
+                        title="Launchpad"
+                    >
+                        <Rocket size={24} />
+                    </button>
+
+                    {/* Writing Icon */}
+                    <button
+                        style={iconButtonStyle(activeTab === 'writing')}
+                        onClick={() => onTabChange('writing')}
+                        title="Writing Mode"
+                    >
+                        <Pen size={24} />
+                    </button>
+
+                    <div style={{ flex: 1 }} />
+
+                    {/* Expand/Collapse Toggle Button for Widget Panel */}
+                    <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        style={{
+                            ...iconButtonStyle(false),
+                            color: theme === 'light' ? '#4b5563' : 'rgba(255,255,255,0.6)',
+                        }}
+                        className="hover-bg"
+                        title={isExpanded ? "Collapse Widgets" : "Expand Widgets"}
+                    >
+                        {isExpanded ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
+                    </button>
+                </div>
+
+                {/* 2. Widget Panel (Collapsible) */}
+                <div
+                    className="no-scrollbar"
+                    style={{
+                        ...glassStyle,
+                        pointerEvents: 'auto',
+                        width: '310px',
+                        height: '100%',
+                        borderRadius: '24px',
+                        border: `1px solid ${glassStyle.borderColor}`,
+                        boxShadow: '0 10px 40px -10px rgba(0, 0, 0, 0.1)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1rem',
                         padding: '1.5rem',
                         overflowY: 'auto',
-                        transform: isOpen
-                            ? (isMobile ? 'translateY(0)' : 'translateX(0)')
-                            : (isMobile ? 'translateY(100%)' : 'translateX(-120%)'),
-                        transition: 'transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1)',
-                        color: theme === 'light' ? '#1f2937' : 'white',
+                        overflowX: 'hidden',
+                        // Animation properties
+                        maxWidth: isExpanded ? '310px' : '0px',
+                        opacity: isExpanded ? 1 : 0,
+                        paddingLeft: isExpanded ? '1.5rem' : '0px',
+                        paddingRight: isExpanded ? '1.5rem' : '0px',
+                        borderWidth: isExpanded ? '1px' : '0px',
+                        marginLeft: isExpanded ? '0' : '-1rem', // Pull it back when closed to hide gap
+                        transition: 'all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)',
+                    }}
+                >
+                    <div style={{
+                        minWidth: '260px', // Prevent content squishing during transition
+                        opacity: isExpanded ? 1 : 0,
+                        transition: 'opacity 0.2s ease',
+                        transitionDelay: isExpanded ? '0.1s' : '0s',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1rem',
+                        height: '100%',
                     }}>
-                    {/* Header */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.025em', display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap', color: theme === 'light' ? '#111827' : 'white' }}>
-                            <LayoutGrid size={20} color="var(--accent-color)" />
-                            Hub
-                        </h2>
-                        <button
-                            onClick={onClose}
-                            style={{
-                                background: 'none',
-                                border: 'none',
-                                color: theme === 'light' ? '#4b5563' : 'var(--text-secondary)',
-                                cursor: 'pointer',
-                                padding: '0.25rem',
-                                borderRadius: '50%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                            }}
-                            className="hover-bg"
-                        >
-                            <X size={20} />
-                        </button>
-                    </div>
+                        {/* Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.025em', display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap', color: 'inherit' }}>
+                                <LayoutGrid size={20} color="var(--accent-color)" />
+                                Hub
+                            </h2>
+                        </div>
 
-                    {/* Widgets */}
-                    <ClockWidget theme={theme} />
-                    <InfoWidget theme={theme} weather={weather} />
+                        {/* Widgets */}
+                        <ClockWidget theme={theme} />
+                        <InfoWidget theme={theme} weather={weather} />
 
-                    {/* Conditionally render TaskList or CharacterCount */}
-                    {viewMode === 'charCount' ? (
-                        <TaskListWidget theme={theme} onlyInput={true} />
-                    ) : (
-                        <CharacterCountWidget
-                            text={text}
-                            handleTextChange={handleTextChange}
-                            stats={stats}
+                        {/* Show Character Count Widget always (as info) or conditionally? 
+                            User said "Writing Mode" is 3rd icon. 
+                            Let's keep showing widgets regardless of main view mode, 
+                            but maybe adapt 'TaskListWidget' usage.
+                            For now, keeping logic simple: show TaskListWidget only if NOT writing?
+                            Actually, let's just keep the widgets consistent.
+                        */}
+
+                        {activeTab === 'writing' ? (
+                            <CharacterCountWidget
+                                text={text}
+                                handleTextChange={handleTextChange}
+                                stats={stats}
+                                theme={theme}
+                                saveStatus={saveStatus}
+                            />
+                        ) : (
+                            <TaskListWidget theme={theme} onlyInput={true} />
+                        )}
+
+                        <MusicWidget
                             theme={theme}
-                            saveStatus={saveStatus}
+                            isMusicPlaying={isMusicPlaying}
+                            toggleMusic={toggleMusic}
+                            musicVolume={musicVolume}
+                            onVolumeChange={onVolumeChange}
                         />
-                    )}
+                        <ThemeWidget theme={theme} setTheme={setTheme} />
 
-                    {/* Removed TaskCommitWidget */}
-                    <MusicWidget
-                        theme={theme}
-                        isMusicPlaying={isMusicPlaying}
-                        toggleMusic={toggleMusic}
-                        musicVolume={musicVolume}
-                        onVolumeChange={onVolumeChange}
-                    />
-                    <ThemeWidget theme={theme} setTheme={setTheme} />
-
-                    {isMobile && (
-                        <>
-                            <div style={{ width: '100%', height: '1px', backgroundColor: theme === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)' }} />
-                            <PerplexityWidget theme={theme} />
-                            <BookmarkWidget theme={theme} />
-                        </>
-                    )}
+                        {/* View Task Stats Button */}
+                        {isSignedIn && (
+                            <button
+                                onClick={() => setIsStatsOpen(true)}
+                                style={{
+                                    marginTop: 'auto',
+                                    width: '100%',
+                                    padding: '0.75rem',
+                                    borderRadius: '12px',
+                                    border: 'none',
+                                    backgroundColor: theme === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)',
+                                    color: 'inherit',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '0.5rem',
+                                    fontWeight: 600,
+                                    transition: 'all 0.2s',
+                                }}
+                                className="hover-bg"
+                            >
+                                <BarChart size={18} />
+                                View Task Stats
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
+
+            <TaskStatsModal isOpen={isStatsOpen} onClose={() => setIsStatsOpen(false)} theme={theme} />
         </>
     );
 }

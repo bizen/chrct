@@ -23,7 +23,7 @@ import { Mascot } from '../Mascot';
 import { RefreshCw } from 'lucide-react';
 
 // Utils / Hooks
-import { playTypeSound } from '../../utils/sound';
+
 import { useStreak } from '../../hooks/useStreak';
 
 export function Workspace() {
@@ -55,8 +55,8 @@ export function Workspace() {
     return (saved as 'dark' | 'light' | 'wallpaper') || 'wallpaper';
   });
   const [isAboutOpen, setIsAboutOpen] = useState(false);
-  const [isHubOpen, setIsHubOpen] = useState(() => {
-    const saved = localStorage.getItem('chrct_hub_open');
+  const [isChoreChainOpen, setIsChoreChainOpen] = useState(() => {
+    const saved = localStorage.getItem('chrct_chore_chain_open');
     return saved ? JSON.parse(saved) : false;
   });
 
@@ -146,8 +146,8 @@ export function Workspace() {
   }, [theme]);
 
   useEffect(() => {
-    localStorage.setItem('chrct_hub_open', JSON.stringify(isHubOpen));
-  }, [isHubOpen]);
+    localStorage.setItem('chrct_chore_chain_open', JSON.stringify(isChoreChainOpen));
+  }, [isChoreChainOpen]);
 
   useEffect(() => {
     const characters = text.length;
@@ -190,7 +190,6 @@ export function Workspace() {
 
     // Only trigger popup if text length increased (typing)
     if (newText.length > text.length) {
-      playTypeSound(); // Play typing sound
 
       const now = Date.now();
       if (now - lastPopupTime.current > 500) { // Throttle: every 500ms
@@ -286,9 +285,9 @@ export function Workspace() {
       setTimeout(() => setZenFlash(false), 500);
     }
     setIsZenMode(!isZenMode);
-    // Close Hub if open
-    if (!isZenMode && isHubOpen) {
-      setIsHubOpen(false);
+    // Close ChoreChain if open
+    if (!isZenMode && isChoreChainOpen) {
+      setIsChoreChainOpen(false);
     }
   };
 
@@ -504,7 +503,7 @@ export function Workspace() {
               </div>
 
               <button
-                onClick={() => setIsHubOpen(!isHubOpen)}
+                onClick={() => setIsChoreChainOpen(!isChoreChainOpen)}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -518,7 +517,7 @@ export function Workspace() {
                   transition: 'background-color 0.2s',
                 }}
                 className="hover-bg"
-                title="Open Hub"
+                title="Toggle Chore Chain"
               >
                 <LayoutGrid size={20} />
               </button>
@@ -658,8 +657,6 @@ export function Workspace() {
           <CreditModal isOpen={isCreditOpen} onClose={() => setIsCreditOpen(false)} />
 
           <HubSidebar
-            isOpen={isHubOpen}
-            onClose={() => setIsHubOpen(false)}
             theme={theme}
             setTheme={setTheme}
             isMusicPlaying={isPlaying}
@@ -671,10 +668,10 @@ export function Workspace() {
             handleTextChange={handleTextChange}
             stats={stats}
           />
-          {/* Right Hub Sidebar */}
+          {/* Right Hub Sidebar (Chore Chain) */}
           <RightHubSidebar
-            isOpen={isHubOpen}
-            onClose={() => setIsHubOpen(false)}
+            isOpen={isChoreChainOpen}
+            onClose={() => setIsChoreChainOpen(false)}
             theme={theme}
           />
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, memo } from 'react';
-import { Plus, Check, Trash2, GitBranch, GripVertical, Clock, Repeat } from 'lucide-react';
+import { Plus, Check, Trash2, GitBranch, GripVertical, Clock, Repeat, Eye, EyeOff } from 'lucide-react';
 import {
     DndContext,
     closestCenter,
@@ -34,6 +34,7 @@ interface Task {
     parentId?: string;
     order?: number;
     dailyRepeat?: boolean;
+    inDailyList?: boolean;
 }
 
 // Helper to format time
@@ -67,6 +68,7 @@ interface TaskRowProps {
     timeLeft: number;
     now: number;
     isMobile: boolean;
+    showCompleted: boolean; // Added prop
     isMobileMenuOpen?: boolean;
     onMobileMenuOpenChange?: (isOpen: boolean) => void;
     handlers: {
@@ -183,7 +185,7 @@ const SortableTaskRow = (props: TaskRowProps) => {
 };
 
 const TaskContent = ({
-    task, depth, isZoneActive, theme, firstMoveModal, firstMoveText, timeLeft, now, isMobile, handlers,
+    task, depth, isZoneActive, theme, firstMoveModal, firstMoveText, timeLeft, now, isMobile, showCompleted, handlers,
     onMobileMenuOpenChange, dragHandleAttributes, dragHandleListeners
 }: TaskRowProps & { dragHandleAttributes?: any, dragHandleListeners?: any }) => {
     // Memoized Input Component Logic extracted to TaskInput above
@@ -671,31 +673,45 @@ const TaskContent = ({
 
             {/* Subtasks */}
             {task.subtasks && task.subtasks.length > 0 && (
-                <SortableContext items={task.subtasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0.35rem' : '0.5rem' }}>
-                        {task.subtasks.map(subtask => (
-                            <SortableTaskRow
-                                key={subtask.id}
-                                task={subtask}
-                                depth={depth + 1}
-                                isZoneActive={isZoneActive}
-                                theme={theme}
-                                firstMoveModal={firstMoveModal}
-                                firstMoveText={firstMoveText}
-                                timeLeft={timeLeft}
-                                now={now}
-                                isMobile={isMobile}
-                                handlers={handlers}
-                            />
-                        ))}
-                    </div>
-                </SortableContext>
+                (() => {
+                    const visibleSubtasks = task.subtasks.filter(t => showCompleted || t.status !== 'completed');
+                    if (visibleSubtasks.length === 0) return null;
+
+                    return (
+                        <SortableContext items={visibleSubtasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0.35rem' : '0.5rem' }}>
+                                {visibleSubtasks.map(subtask => (
+                                    <SortableTaskRow
+                                        key={subtask.id}
+                                        task={subtask}
+                                        depth={depth + 1}
+                                        isZoneActive={isZoneActive}
+                                        theme={theme}
+                                        firstMoveModal={firstMoveModal}
+                                        firstMoveText={firstMoveText}
+                                        timeLeft={timeLeft}
+                                        now={now}
+                                        isMobile={isMobile}
+                                        showCompleted={showCompleted}
+                                        handlers={handlers}
+                                    />
+                                ))}
+                            </div>
+                        </SortableContext>
+                    );
+                })()
             )}
         </div>
     );
 };
 
-export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' }) {
+interface TaskListViewProps {
+    theme: 'dark' | 'light' | 'wallpaper';
+    filterTaskIds?: Set<string>;
+    onTaskCreated?: (taskId: string) => void;
+}
+
+export function TaskListView({ theme, filterTaskIds, onTaskCreated }: TaskListViewProps) {
     // Convex Hooks
     const { isAuthenticated, isLoading } = useConvexAuth();
     const rawTasks = useQuery(api.tasks.get, isAuthenticated ? {} : "skip");
@@ -733,7 +749,10 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
             if (t.parentId && map.has(t.parentId)) {
                 map.get(t.parentId)!.subtasks!.push(node);
             } else {
-                roots.push(node);
+                // If filterTaskIds is provided, only include matching root tasks
+                if (!filterTaskIds || filterTaskIds.has(t._id)) {
+                    roots.push(node);
+                }
             }
         });
 
@@ -776,9 +795,10 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
         // Actually, component handles `currentSessionTime` locally for display.
         // But we need to ensure local display handles the recursive check for "isAnyTaskActive".
         return roots;
-    }, [rawTasks]);
+    }, [rawTasks, filterTaskIds]);
 
     const [newTask, setNewTask] = useState('');
+    const [showCompleted, setShowCompleted] = useState(true);
 
     // Migration Logic
     useEffect(() => {
@@ -897,14 +917,17 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
         setTimeLeft(60);
     };
 
-    const addTask = (e: React.FormEvent) => {
+    const addTask = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newTask.trim()) return;
-        addTaskMutation({
+        const taskId = await addTaskMutation({
             text: newTask.trim(),
             status: 'idle',
             order: tasks.length || 0, // Append to end of root
         });
+        if (onTaskCreated && taskId) {
+            onTaskCreated(taskId as string);
+        }
         setNewTask('');
     };
 
@@ -1223,122 +1246,163 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
                             </button>
                         </form>
 
-                        {/* GRAND TASKS counter - hidden on mobile */}
-                        {!isMobile && (
-                            <div style={{
-                                backgroundColor: 'var(--card-bg)',
-                                border: '1px solid var(--border-color)',
-                                borderRadius: '12px',
-                                padding: '0 1.25rem',
+                        {/* Toggle Completed Tasks Button */}
+                        <button
+                            onClick={() => setShowCompleted(!showCompleted)}
+                            style={{
+                                background: 'var(--accent-color)',
+                                border: 'none',
+                                borderRadius: isMobile ? '10px' : '12px',
+                                width: isMobile ? '52px' : '64px',
+                                height: 'auto',
                                 display: 'flex',
-                                flexDirection: 'column',
-                                justifyContent: 'center',
                                 alignItems: 'center',
-                                minWidth: '80px',
+                                justifyContent: 'center',
+                                color: 'white',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
                                 flexShrink: 0,
-                            }}>
-                                <span style={{
-                                    fontSize: '0.65rem',
-                                    fontWeight: 700,
-                                    color: 'var(--text-secondary)',
-                                    letterSpacing: '0.05em',
-                                    textTransform: 'uppercase',
-                                    marginBottom: '2px'
+                            }}
+                            className="hover:opacity-90 active:scale-95"
+                            title={showCompleted ? "Hide Completed Tasks" : "Show Completed Tasks"}
+                        >
+                            {showCompleted ? <EyeOff size={isMobile ? 24 : 28} /> : <Eye size={isMobile ? 24 : 28} />}
+                        </button>
+
+                        {/* TIME ALIVE counter - hidden on mobile */}
+                        {!isMobile && (() => {
+                            // Calculate total time alive today
+                            const today = new Date();
+                            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+                            let totalAliveMs = 0;
+
+                            // Helper to recursively sum time from tasks
+                            const sumTaskTime = (taskList: Task[]) => {
+                                for (const t of taskList) {
+                                    // Add time from tasks completed today
+                                    if (t.status === 'completed' && t.completedAt === todayStr && t.totalTime) {
+                                        totalAliveMs += t.totalTime;
+                                    }
+                                    // Add time from active tasks (totalTime + current session)
+                                    if (t.status === 'active') {
+                                        totalAliveMs += t.totalTime || 0;
+                                        if (t.activeSince) {
+                                            totalAliveMs += now - t.activeSince;
+                                        }
+                                    }
+                                    // Add time from idle tasks that have accumulated time today
+                                    // (tasks that were active earlier today but stopped without completing)
+                                    if (t.status === 'idle' && t.totalTime) {
+                                        totalAliveMs += t.totalTime;
+                                    }
+                                    // Recurse into subtasks
+                                    if (t.subtasks && t.subtasks.length > 0) {
+                                        sumTaskTime(t.subtasks);
+                                    }
+                                }
+                            };
+                            sumTaskTime(tasks);
+
+                            const totalMinutes = Math.floor(totalAliveMs / (1000 * 60));
+                            const aliveHours = Math.floor(totalMinutes / 60);
+                            const aliveMinutes = totalMinutes % 60;
+                            const aliveDisplay = `${aliveHours}hr ${aliveMinutes}m`;
+
+                            return (
+                                <div style={{
+                                    backgroundColor: 'var(--card-bg)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '12px',
+                                    padding: '0 1.25rem',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                    minWidth: '100px',
+                                    flexShrink: 0,
                                 }}>
-                                    GRAND TASKS
-                                </span>
-                                <span style={{
-                                    fontSize: '1.8rem',
-                                    fontWeight: 700,
-                                    color: 'var(--accent-color)',
-                                    lineHeight: 1
-                                }}>
-                                    {activeTasks.length}
-                                </span>
-                            </div>
-                        )}
+                                    <span style={{
+                                        fontSize: '0.65rem',
+                                        fontWeight: 700,
+                                        color: 'var(--text-secondary)',
+                                        letterSpacing: '0.05em',
+                                        textTransform: 'uppercase',
+                                        marginBottom: '2px'
+                                    }}>
+                                        TIME ALIVE
+                                    </span>
+                                    <span style={{
+                                        fontSize: '1.5rem',
+                                        fontWeight: 700,
+                                        color: 'var(--accent-color)',
+                                        lineHeight: 1,
+                                        fontVariantNumeric: 'tabular-nums'
+                                    }}>
+                                        {aliveDisplay}
+                                    </span>
+                                </div>
+                            );
+                        })()}
                     </div>
 
                     {/* Layout Split: Timeline+Active | Separator | Completed */}
                     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto', paddingBottom: '2rem' }}>
 
-                        {/* 1. Active Section with Timeline */}
-                        <div style={{ display: 'flex', gap: '1rem', position: 'relative', minHeight: activeTasks.length > 0 ? '50px' : '0' }}>
-
-                            {/* Timeline Container - hidden on mobile */}
-                            <div style={{
-                                display: activeTasks.length > 0 && !isMobile ? 'flex' : 'none',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                width: '24px',
-                                flexShrink: 0,
-                                marginTop: '10px',
-                                marginBottom: '10px'
-                            }}>
-                                <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '4px' }}>AM</div>
+                        {/* 1. Active Section with Timeline (Timeline removed) */}
+                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, padding: '10px', gap: '0.5rem' }}>
+                            {activeTasks.length === 0 && (
                                 <div style={{
-                                    width: '6px',
-                                    flex: 1,
-                                    borderRadius: '4px',
-                                    background: 'linear-gradient(to bottom, #7DD3FC 0%, #E0F7FA 30%, #a78bfa 70%, #4338ca 100%)',
-                                }} />
-                                <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)', marginTop: '4px' }}>PM</div>
-                            </div>
+                                    textAlign: 'center',
+                                    opacity: 0.5,
+                                    marginTop: '2rem',
+                                    marginBottom: '2rem',
+                                    fontSize: '1.1rem'
+                                }}>
+                                    No active tasks.
+                                </div>
+                            )}
 
-                            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, padding: '10px', gap: '0.5rem' }}>
-                                {activeTasks.length === 0 && (
-                                    <div style={{
-                                        textAlign: 'center',
-                                        opacity: 0.5,
-                                        marginTop: '2rem',
-                                        marginBottom: '2rem',
-                                        fontSize: '1.1rem'
-                                    }}>
-                                        No active tasks.
-                                    </div>
-                                )}
-
-                                <style>{`
+                            <style>{`
                             @keyframes expandOpen {
                                 0% { opacity: 0; transform: translateY(-10px); clip-path: inset(0 0 100% 0); }
                                 100% { opacity: 1; transform: translateY(0); clip-path: inset(0 0 -10% 0); }
                             }
                         `}</style>
 
-                                <DndContext
-                                    sensors={sensors}
-                                    collisionDetection={closestCenter}
-                                    onDragEnd={handleDragEnd}
+                            <DndContext
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragEnd={handleDragEnd}
+                            >
+                                <SortableContext
+                                    items={activeTasks.map(t => t.id)}
+                                    strategy={verticalListSortingStrategy}
                                 >
-                                    <SortableContext
-                                        items={activeTasks.map(t => t.id)}
-                                        strategy={verticalListSortingStrategy}
-                                    >
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0.5rem' : '1rem' }}>
-                                            {activeTasks.map(task => (
-                                                <SortableTaskRow
-                                                    key={task.id}
-                                                    task={task}
-                                                    depth={0}
-                                                    isZoneActive={false} // Top level handled by isAnyTaskActive logic
-                                                    theme={theme}
-                                                    firstMoveModal={firstMoveModal}
-                                                    firstMoveText={firstMoveText}
-                                                    timeLeft={timeLeft}
-                                                    now={now}
-                                                    isMobile={isMobile}
-                                                    handlers={handlers}
-                                                />
-                                            ))}
-                                        </div>
-                                    </SortableContext>
-                                </DndContext>
-                            </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0.5rem' : '1rem' }}>
+                                        {activeTasks.map(task => (
+                                            <SortableTaskRow
+                                                key={task.id}
+                                                task={task}
+                                                depth={0}
+                                                isZoneActive={false} // Top level handled by isAnyTaskActive logic
+                                                theme={theme}
+                                                firstMoveModal={firstMoveModal}
+                                                firstMoveText={firstMoveText}
+                                                timeLeft={timeLeft}
+                                                now={now}
+                                                isMobile={isMobile}
+                                                showCompleted={showCompleted}
+                                                handlers={handlers}
+                                            />
+                                        ))}
+                                    </div>
+                                </SortableContext>
+                            </DndContext>
                         </div>
 
                         {/* 2. Completed Section */}
-                        {completedTasks.length > 0 && (
+                        {showCompleted && completedTasks.length > 0 && (
                             <div style={{ marginTop: '2rem' }}>
                                 <div style={{
                                     display: 'flex',
@@ -1367,6 +1431,7 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
                                             timeLeft={timeLeft}
                                             now={now}
                                             isMobile={isMobile}
+                                            showCompleted={showCompleted}
                                             handlers={handlers}
                                         />
                                     ))}
@@ -1375,7 +1440,8 @@ export function TaskListView({ theme }: { theme: 'dark' | 'light' | 'wallpaper' 
                         )}
                     </div>
                 </>
-            )}
-        </div>
+            )
+            }
+        </div >
     );
 }

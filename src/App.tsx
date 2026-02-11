@@ -11,6 +11,7 @@ import { Analytics } from '@vercel/analytics/react';
 import bgImg from './assets/cirno-daiyosei-landscape.jpeg';
 import shareBgImg from './assets/sharecard_landscape.png';
 import chirunoMp3 from './assets/chiruno.mp3';
+import cirnoImg from './assets/cirno.png';
 
 // Components
 import { HubSidebar } from './components/HubSidebar';
@@ -20,14 +21,16 @@ import { TaskListView } from './components/views/TaskListView';
 import { CreditModal } from './components/CreditModal';
 import { ShareModal } from './components/ShareModal';
 import { Mascot } from './components/Mascot';
-import { RefreshCw } from 'lucide-react';
+
+import { SuperGoalView } from './components/views/SuperGoalView';
 
 // Utils / Hooks
-import { playTypeSound } from './utils/sound';
+
 import { useStreak } from './hooks/useStreak';
 import { useCloudSync } from './hooks/useCloudSync';
 import { useLicense } from './hooks/useLicense';
 import { ActivationModal } from './components/ActivationModal';
+import { ActiveTaskPill } from './components/ActiveTaskPill';
 
 function App() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -53,7 +56,7 @@ function App() {
   // License Check
   const { isActivated, isChecking, isActivating, activateLicense, error: licenseError } = useLicense();
 
-  const { streak, isCompletedToday, dailyProgress } = useStreak(isActivated);
+  const { isCompletedToday, dailyProgress, weeklyHours } = useStreak(isActivated);
 
   // Cloud Sync (Only if license is active)
   const { saveStatus } = useCloudSync(text, setText, isActivated);
@@ -64,8 +67,8 @@ function App() {
     return (saved as 'dark' | 'light' | 'wallpaper') || 'wallpaper';
   });
   const [isAboutOpen, setIsAboutOpen] = useState(false);
-  const [isHubOpen, setIsHubOpen] = useState(() => {
-    const saved = localStorage.getItem('chrct_hub_open');
+  const [isChoreChainOpen, setIsChoreChainOpen] = useState(() => {
+    const saved = localStorage.getItem('chrct_chore_chain_open');
     return saved ? JSON.parse(saved) : false;
   });
 
@@ -91,19 +94,16 @@ function App() {
   });
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // View Mode state
-  const [viewMode, setViewMode] = useState<'charCount' | 'taskList'>(() => {
-    const saved = localStorage.getItem('chrct_view_mode');
-    return (saved as 'charCount' | 'taskList') || 'charCount';
+  // View Mode / Tab state
+  const [activeTab, setActiveTab] = useState<'super_goal' | 'launchpad' | 'writing'>(() => {
+    const saved = localStorage.getItem('chrct_active_tab');
+    if (saved === 'daily_goal') return 'launchpad'; // migrate old value
+    return (saved as 'super_goal' | 'launchpad' | 'writing') || 'super_goal';
   });
 
-  const toggleViewMode = () => {
-    setViewMode(prev => prev === 'charCount' ? 'taskList' : 'charCount');
-  };
-
   useEffect(() => {
-    localStorage.setItem('chrct_view_mode', viewMode);
-  }, [viewMode]);
+    localStorage.setItem('chrct_active_tab', activeTab);
+  }, [activeTab]);
 
   useEffect(() => {
     audioRef.current = new Audio(chirunoMp3);
@@ -155,8 +155,8 @@ function App() {
   }, [theme]);
 
   useEffect(() => {
-    localStorage.setItem('chrct_hub_open', JSON.stringify(isHubOpen));
-  }, [isHubOpen]);
+    localStorage.setItem('chrct_chore_chain_open', JSON.stringify(isChoreChainOpen));
+  }, [isChoreChainOpen]);
 
   useEffect(() => {
     const characters = text.length;
@@ -199,7 +199,6 @@ function App() {
 
     // Only trigger popup if text length increased (typing)
     if (newText.length > text.length) {
-      playTypeSound(); // Play typing sound
 
       const now = Date.now();
       if (now - lastPopupTime.current > 500) { // Throttle: every 500ms
@@ -295,9 +294,9 @@ function App() {
       setTimeout(() => setZenFlash(false), 500);
     }
     setIsZenMode(!isZenMode);
-    // Close Hub if open
-    if (!isZenMode && isHubOpen) {
-      setIsHubOpen(false);
+    // Close ChoreChain if open
+    if (!isZenMode && isChoreChainOpen) {
+      setIsChoreChainOpen(false);
     }
   };
 
@@ -308,16 +307,167 @@ function App() {
   if (isChecking) {
     return (
       <div style={{
-        height: '100vh',
-        width: '100vw',
+        position: 'fixed',
+        inset: 0,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#121620', // Explicit dark background
-        color: '#e2e8f0', // Explicit light text
-        fontFamily: 'sans-serif'
+        background: '#0a0e1a',
+        color: '#e2e8f0',
+        fontFamily: "'Space Grotesk', 'Noto Sans JP', sans-serif",
+        overflow: 'hidden',
+        zIndex: 9999,
       }}>
-        Loading environment...
+        {/* Scanline overlay (decorative, full-screen) */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.015) 2px, rgba(255,255,255,0.015) 4px)',
+          pointerEvents: 'none',
+          zIndex: 1,
+        }} />
+
+        {/* Content: flex row, text + cirno, fully in flow */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 'clamp(2rem, 5vw, 5rem)',
+          maxWidth: '90vw',
+          maxHeight: '90vh',
+          zIndex: 2,
+        }}>
+          {/* Left: Boot text */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            gap: '1.5rem',
+            flexShrink: 0,
+          }}>
+            {/* Logo */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              marginBottom: '0.5rem',
+            }}>
+              <Sparkles size={28} color="#60A5FA" fill="#60A5FA" style={{
+                animation: 'loading-pulse 2s ease-in-out infinite',
+              }} />
+              <span style={{
+                fontSize: '1.8rem',
+                fontWeight: 700,
+                letterSpacing: '-0.04em',
+                color: '#e2e8f0',
+              }}>chrct</span>
+            </div>
+
+            {/* Boot messages */}
+            <div style={{
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              fontSize: '0.8rem',
+              color: '#475569',
+              lineHeight: 1.8,
+              letterSpacing: '0.02em',
+            }}>
+              <div style={{ animation: 'loading-fade-in 0.3s ease forwards', opacity: 0, animationDelay: '0.1s' }}>
+                <span style={{ color: '#60A5FA' }}>&gt;</span> initializing system...
+              </div>
+              <div style={{ animation: 'loading-fade-in 0.3s ease forwards', opacity: 0, animationDelay: '0.5s' }}>
+                <span style={{ color: '#60A5FA' }}>&gt;</span> loading modules...
+              </div>
+              <div style={{ animation: 'loading-fade-in 0.3s ease forwards', opacity: 0, animationDelay: '0.9s' }}>
+                <span style={{ color: '#60A5FA' }}>&gt;</span> connecting to cloud...
+              </div>
+            </div>
+
+            {/* Main loading text */}
+            <div style={{
+              fontSize: '1.4rem',
+              fontWeight: 600,
+              color: '#94a3b8',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+            }}>
+              <span style={{ color: '#60A5FA', fontSize: '1.1rem' }}>⑨</span>
+              少女立ち上げ中
+              <span style={{ animation: 'loading-dots 1.5s steps(4, end) infinite' }}>...</span>
+            </div>
+
+            {/* Progress bar */}
+            <div style={{
+              width: '260px',
+              height: '3px',
+              background: 'rgba(96,165,250,0.1)',
+              borderRadius: '4px',
+              overflow: 'hidden',
+              animation: 'loading-fade-in 0.5s ease forwards',
+              animationDelay: '1.5s',
+              opacity: 0,
+            }}>
+              <div style={{
+                height: '100%',
+                background: 'linear-gradient(90deg, #60A5FA, #818CF8, #60A5FA)',
+                backgroundSize: '200% 100%',
+                borderRadius: '4px',
+                animation: 'loading-bar-sweep 1.8s ease-in-out infinite',
+              }} />
+            </div>
+          </div>
+
+          {/* Right: Cirno image — fully in flex flow, shrinks with viewport  */}
+          <div style={{
+            flexShrink: 1,
+            minWidth: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            animation: 'loading-cirno-float 3s ease-in-out infinite',
+          }}>
+            <img
+              src={cirnoImg}
+              alt="Cirno"
+              style={{
+                height: 'clamp(180px, 45vh, 400px)',
+                maxWidth: '100%',
+                objectFit: 'contain',
+                animation: 'loading-cirno-reveal 0.6s ease-out forwards',
+                userSelect: 'none',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Inline keyframes */}
+        <style>{`
+          @keyframes loading-pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.95); }
+          }
+          @keyframes loading-fade-in {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes loading-cirno-float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-12px); }
+          }
+          @keyframes loading-cirno-reveal {
+            0% { filter: brightness(100) drop-shadow(0 0 30px rgba(255,255,255,0.5)); }
+            60% { filter: brightness(1.5) drop-shadow(0 0 30px rgba(96,165,250,0.3)); }
+            100% { filter: brightness(1) drop-shadow(0 0 30px rgba(96,165,250,0.2)) drop-shadow(0 0 60px rgba(96,165,250,0.08)); }
+          }
+          @keyframes loading-bar-sweep {
+            0% { width: 0%; background-position: 0% 0; }
+            50% { width: 100%; background-position: 100% 0; }
+            100% { width: 0%; background-position: 0% 0; }
+          }
+        `}</style>
       </div>
     );
   }
@@ -353,372 +503,367 @@ function App() {
 
       {/* Main Content Wrapper */}
       {isActivated && (
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          minWidth: 0,
-          position: 'relative',
-          transition: 'all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1)', // Smooth resize
-        }}>
+        <>
+          <ActiveTaskPill />
           <div style={{
-            maxWidth: '1200px',
-            margin: '0 auto',
-            width: '100%',
-            padding: '2rem',
+            flex: 1,
             display: 'flex',
             flexDirection: 'column',
-            height: '100vh',
-            boxSizing: 'border-box', // Ensure padding doesn't overflow width
-            gap: '2rem',
-            flex: 1,
+            minWidth: 0,
+            position: 'relative',
+            transition: 'all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1)', // Smooth resize
           }}>
+            <div style={{
+              maxWidth: '1200px',
+              margin: '0 auto',
+              width: '100%',
+              padding: '2rem',
+              display: 'flex',
+              flexDirection: 'column',
+              height: '100vh',
+              boxSizing: 'border-box', // Ensure padding doesn't overflow width
+              gap: '2rem',
+              flex: 1,
+            }}>
 
 
-            {/* Hidden Share Card for Capture */}
-            <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-              <div
-                ref={shareRef}
-                style={{
-                  width: '1080px',
-                  height: '1080px',
-                  position: 'relative',
-                  backgroundColor: '#1a1a1a',
-                  color: 'white',
-                  fontFamily: "'Space Grotesk', sans-serif",
-                  overflow: 'hidden',
-                }}
-              >
-                {/* Background Image with Overlay */}
-                <img
-                  src={shareBgImg}
-                  alt="Background"
+              {/* Hidden Share Card for Capture */}
+              <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+                <div
+                  ref={shareRef}
                   style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
+                    width: '1080px',
+                    height: '1080px',
+                    position: 'relative',
+                    backgroundColor: '#1a1a1a',
+                    color: 'white',
+                    fontFamily: "'Space Grotesk', sans-serif",
+                    overflow: 'hidden',
+                  }}
+                >
+                  {/* Background Image with Overlay */}
+                  <img
+                    src={shareBgImg}
+                    alt="Background"
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      opacity: 0.6,
+                    }}
+                  />
+
+                  {/* Content Container */}
+                  <div style={{
+                    position: 'relative',
+                    zIndex: 10,
                     width: '100%',
                     height: '100%',
-                    objectFit: 'cover',
-                    opacity: 0.6,
-                  }}
-                />
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: '3rem',
+                  }}>
+                    {/* Logo */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                      <Sparkles size={80} color="#60A5FA" fill="#60A5FA" />
+                      <span style={{ fontSize: '5rem', fontWeight: 'bold', letterSpacing: '-0.05em' }}>chrct</span>
+                    </div>
 
-                {/* Content Container */}
+                    {/* Main Stats */}
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '16rem', fontWeight: 700, lineHeight: 1, color: '#60A5FA', textShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+                        {stats.characters.toLocaleString()}
+                      </div>
+                      <div style={{ fontSize: '3rem', fontWeight: 500, color: '#e5e7eb', letterSpacing: '0.1em', marginTop: '1.5rem' }}>
+                        CHARACTERS
+                      </div>
+                    </div>
+
+                    {/* Sub Stats Grid */}
+                    <div style={{ display: 'flex', gap: '6rem', marginTop: '3rem' }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '4rem', fontWeight: 700 }}>{stats.words}</div>
+                        <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>WORDS</div>
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '4rem', fontWeight: 700 }}>{stats.sentences}</div>
+                        <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>SENTENCES</div>
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '4rem', fontWeight: 700 }}>{stats.paragraphs}</div>
+                        <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>PARAGRAPHS</div>
+                      </div>
+                    </div>
+
+                    {/* Footer URL */}
+                    <div style={{ position: 'absolute', bottom: '3rem', fontSize: '2rem', opacity: 1, letterSpacing: '0.05em' }}>
+                      chrct.com
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Background Layer */}
+              <div className={`wallpaper-container ${theme === 'wallpaper' ? 'visible' : ''}`}>
                 <div style={{
-                  position: 'relative',
-                  zIndex: 10,
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
                   width: '100%',
                   height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  gap: '3rem',
-                }}>
-                  {/* Logo */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                    <Sparkles size={80} color="#60A5FA" fill="#60A5FA" />
-                    <span style={{ fontSize: '5rem', fontWeight: 'bold', letterSpacing: '-0.05em' }}>chrct</span>
-                  </div>
-
-                  {/* Main Stats */}
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '16rem', fontWeight: 700, lineHeight: 1, color: '#60A5FA', textShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
-                      {stats.characters.toLocaleString()}
-                    </div>
-                    <div style={{ fontSize: '3rem', fontWeight: 500, color: '#e5e7eb', letterSpacing: '0.1em', marginTop: '1.5rem' }}>
-                      CHARACTERS
-                    </div>
-                  </div>
-
-                  {/* Sub Stats Grid */}
-                  <div style={{ display: 'flex', gap: '6rem', marginTop: '3rem' }}>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '4rem', fontWeight: 700 }}>{stats.words}</div>
-                      <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>WORDS</div>
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '4rem', fontWeight: 700 }}>{stats.sentences}</div>
-                      <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>SENTENCES</div>
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '4rem', fontWeight: 700 }}>{stats.paragraphs}</div>
-                      <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>PARAGRAPHS</div>
-                    </div>
-                  </div>
-
-                  {/* Footer URL */}
-                  <div style={{ position: 'absolute', bottom: '3rem', fontSize: '2rem', opacity: 1, letterSpacing: '0.05em' }}>
-                    chrct.com
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Background Layer */}
-            <div className={`wallpaper-container ${theme === 'wallpaper' ? 'visible' : ''}`}>
-              <div style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                backgroundImage: `url(${bgImg})`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                filter: 'blur(8px)', // Default blur
-                transform: 'scale(1.1)', // Prevent blur edges
-              }} />
-              <div style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                backgroundColor: 'rgba(0, 0, 0, 0.6)', // Dark overlay
-              }} />
-            </div>
-
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', width: '100%', transition: 'all 0.5s ease' }} className="animate-in">
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  fontWeight: 'bold',
-                  fontSize: '1.25rem',
-                  letterSpacing: '-0.025em',
-                  cursor: 'default',
-                }}
-                className={isZenMode ? 'zen-hidden' : ''}
-                onMouseEnter={() => setIsHeaderHovered(true)}
-                onMouseLeave={() => setIsHeaderHovered(false)}
-              >
-                <Sparkles size={24} color="var(--accent-color)" fill="var(--accent-color)" />
-                <div className="logo-text">
-                  {/* Part 1: ch */}
-                  <span className="logo-static" style={{ color: isHeaderHovered ? '#60A5FA' : 'var(--text-primary)' }}>ch</span>
-
-                  {/* Part 2: i / a */}
-                  <AnimatedPart isVisible={isHeaderHovered} text={headerPrefix === 'chiruno' ? 'i' : 'a'} color="#60A5FA" />
-
-                  {/* Part 3: r */}
-                  <span className="logo-static" style={{ color: isHeaderHovered ? '#60A5FA' : 'var(--text-primary)' }}>r</span>
-
-                  {/* Part 4: uno / acter */}
-                  <AnimatedPart isVisible={isHeaderHovered} text={headerPrefix === 'chiruno' ? 'uno' : 'acter'} color="#60A5FA" />
-
-                  {/* Part 5: c (start of count) */}
-                  <span className="logo-static" style={{ color: 'var(--text-primary)' }}>c</span>
-
-                  {/* Part 6: oun */}
-                  <AnimatedPart isVisible={isHeaderHovered} text="oun" color="var(--text-primary)" />
-
-                  {/* Part 7: t */}
-                  <span className="logo-static" style={{ color: 'var(--text-primary)' }}>t</span>
-                </div>
+                  backgroundImage: `url(${bgImg})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  filter: 'blur(8px)', // Default blur
+                  transform: 'scale(1.1)', // Prevent blur edges
+                }} />
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  backgroundColor: 'rgba(0, 0, 0, 0.6)', // Dark overlay
+                }} />
               </div>
 
-              <nav className={`header-actions ${isZenMode ? 'zen-hidden' : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 500 }}>
-
-                {/* Streak Badge - Compact on Mobile */}
+              <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', width: '100%', transition: 'all 0.5s ease' }} className="animate-in">
                 <div
-                  className={`streak-badge ${isCompletedToday ? 'completed' : ''}`}
-                  title={isCompletedToday ? "Streak kept! Come back tomorrow." : "Write 100 characters to keep the streak!"}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.4rem',
-                    // padding handled by CSS class for responsiveness
+                    gap: '0.75rem',
+                    fontWeight: 'bold',
+                    fontSize: '1.25rem',
+                    letterSpacing: '-0.025em',
+                    cursor: 'default',
                   }}
+                  className={isZenMode ? 'zen-hidden' : ''}
+                  onMouseEnter={() => setIsHeaderHovered(true)}
+                  onMouseLeave={() => setIsHeaderHovered(false)}
                 >
-                  <Snowflake size={20} className="streak-icon" />
-                  <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1, alignItems: 'flex-start' }}>
-                    <span>{streak}<span className="mobile-hidden"> day{streak !== 1 ? 's' : ''}</span></span>
-                    <span className="streak-details" style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 400 }}>{dailyProgress} tasks</span>
+                  <Sparkles size={24} color="var(--accent-color)" fill="var(--accent-color)" />
+                  <div className="logo-text">
+                    {/* Part 1: ch */}
+                    <span className="logo-static" style={{ color: isHeaderHovered ? '#60A5FA' : 'var(--text-primary)' }}>ch</span>
+
+                    {/* Part 2: i / a */}
+                    <AnimatedPart isVisible={isHeaderHovered} text={headerPrefix === 'chiruno' ? 'i' : 'a'} color="#60A5FA" />
+
+                    {/* Part 3: r */}
+                    <span className="logo-static" style={{ color: isHeaderHovered ? '#60A5FA' : 'var(--text-primary)' }}>r</span>
+
+                    {/* Part 4: uno / acter */}
+                    <AnimatedPart isVisible={isHeaderHovered} text={headerPrefix === 'chiruno' ? 'uno' : 'acter'} color="#60A5FA" />
+
+                    {/* Part 5: c (start of count) */}
+                    <span className="logo-static" style={{ color: 'var(--text-primary)' }}>c</span>
+
+                    {/* Part 6: oun */}
+                    <AnimatedPart isVisible={isHeaderHovered} text="oun" color="var(--text-primary)" />
+
+                    {/* Part 7: t */}
+                    <span className="logo-static" style={{ color: 'var(--text-primary)' }}>t</span>
                   </div>
                 </div>
 
-                <button
-                  onClick={() => setIsHubOpen(!isHubOpen)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'inherit',
-                    cursor: 'pointer',
-                    padding: '0.5rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: '8px',
-                    transition: 'background-color 0.2s',
-                  }}
-                  className="hover-bg"
-                  title="Open Hub"
-                >
-                  <LayoutGrid size={20} />
-                </button>
+                <nav className={`header-actions ${isZenMode ? 'zen-hidden' : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 500 }}>
 
-                <button
-                  onClick={toggleViewMode}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'inherit',
-                    cursor: 'pointer',
-                    padding: '0.5rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: '8px',
-                    transition: 'background-color 0.2s',
-                  }}
-                  className="hover-bg"
-                  title={viewMode === 'charCount' ? "Switch to Task List" : "Switch to Character Count"}
-                >
-                  <RefreshCw size={20} />
-                </button>
+                  {/* Streak Badge - Compact on Mobile */}
+                  <div
+                    className={`streak-badge ${isCompletedToday ? 'completed' : ''}`}
+                    title={isCompletedToday ? "Streak kept! Come back tomorrow." : "Complete 1 task to keep the streak!"}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      // padding handled by CSS class for responsiveness
+                    }}
+                  >
+                    <Snowflake size={20} className="streak-icon" />
+                    <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1, alignItems: 'flex-start' }}>
+                      <span>{weeklyHours}<span className="mobile-hidden"> hrs</span></span>
+                      <span className="streak-details" style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 400 }}>{dailyProgress} tasks</span>
+                    </div>
+                  </div>
 
-                <button
-                  onClick={() => setIsCreditOpen(true)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'inherit',
-                    font: 'inherit',
-                    cursor: 'pointer',
-                    padding: 0,
-                  }}
-                  className="nav-link mobile-hidden"
-                >
-                  Credit
-                </button>
+                  <button
+                    onClick={() => setIsChoreChainOpen(!isChoreChainOpen)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'inherit',
+                      cursor: 'pointer',
+                      padding: '0.5rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '8px',
+                      transition: 'background-color 0.2s',
+                    }}
+                    className="hover-bg"
+                    title="Toggle Chore Chain"
+                  >
+                    <LayoutGrid size={20} />
+                  </button>
 
-                {/* ⑨ Mode Button */}
-                <button
-                  onClick={toggleZenMode}
-                  className={`zen-button ${isZenMode ? 'active' : ''}`}
-                  title={isZenMode ? "Exit Zen Mode" : "Enter ⑨ Mode (Zen)"}
-                >
-                  9
-                </button>
 
-                <div style={{ marginLeft: '0.25rem' }}>
-                  <SignedIn>
-                    <UserButton />
-                  </SignedIn>
-                  <SignedOut>
-                    <SignInButton mode="modal">
-                      <button className="sign-in-btn">
-                        Sign In
-                      </button>
-                    </SignInButton>
-                  </SignedOut>
-                </div>
-              </nav>
-            </header>
 
-            <div style={{
-              borderBottom: '1px solid var(--border-color)',
-              width: '100%',
-              marginBottom: '1rem',
-              opacity: 0.5,
-            }} className={`animate-in delay-100 ${isZenMode ? 'zen-hidden' : ''}`}></div>
+                  <button
+                    onClick={() => setIsCreditOpen(true)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'inherit',
+                      font: 'inherit',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                    className="nav-link mobile-hidden"
+                  >
+                    Credit
+                  </button>
 
-            <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem', flex: 1, width: '100%', position: 'relative' }}>
-              {viewMode === 'charCount' ? (
-                <CharacterCountView
-                  text={text}
-                  handleTextChange={handleTextChange}
-                  stats={stats}
-                  isZenMode={isZenMode}
-                  saveStatus={saveStatus}
-                />
-              ) : (
-                <TaskListView theme={theme} />
-              )}
-            </main>
+                  {/* ⑨ Mode Button */}
+                  <button
+                    onClick={toggleZenMode}
+                    className={`zen-button ${isZenMode ? 'active' : ''}`}
+                    title={isZenMode ? "Exit Zen Mode" : "Enter ⑨ Mode (Zen)"}
+                  >
+                    9
+                  </button>
 
-            <footer style={{
-              display: viewMode === 'charCount' ? 'flex' : 'none',
-              justifyContent: 'space-between',
-              alignItems: isMobile ? 'center' : 'flex-end',
-              padding: '2rem 0',
-              width: '100%',
-              flexDirection: isMobile ? 'column' : 'row',
-              gap: isMobile ? '1rem' : '0'
-            }} className={`animate-in delay-400 ${isZenMode ? 'zen-hidden' : ''}`}>
-              {/* Left: Export Buttons */}
-              <div style={{ display: 'flex', gap: '1rem', justifyContent: isMobile ? 'center' : 'flex-start', width: isMobile ? '100%' : 'auto' }}>
-                <button onClick={handleExportDocx} title="Export to Word (.docx)" className="icon-btn">
-                  <FileText size={20} />
-                </button>
-                <button onClick={handlePrintPdf} title="Print / Save as PDF" className="icon-btn">
-                  <Printer size={20} />
-                </button>
-                <button onClick={handleShare} title="Share Progress" className="icon-btn">
-                  <Share2 size={20} />
-                </button>
-              </div>
+                  <div style={{ marginLeft: '0.25rem' }}>
+                    <SignedIn>
+                      <UserButton />
+                    </SignedIn>
+                    <SignedOut>
+                      <SignInButton mode="modal">
+                        <button className="sign-in-btn">
+                          Sign In
+                        </button>
+                      </SignInButton>
+                    </SignedOut>
+                  </div>
+                </nav>
+              </header>
 
-              {/* Right: Timestamp & Actions */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'center' : 'flex-end', gap: '0.5rem', width: isMobile ? '100%' : 'auto' }}>
-                {lastSaved && (
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.8, fontFamily: 'monospace' }}>
-                    Saved {lastSaved.getMonth() + 1}/{lastSaved.getDate()} {lastSaved.getHours().toString().padStart(2, '0')}:{lastSaved.getMinutes().toString().padStart(2, '0')}
-                  </span>
+              <div style={{
+                borderBottom: '1px solid var(--border-color)',
+                width: '100%',
+                marginBottom: '1rem',
+                opacity: 0.5,
+              }} className={`animate-in delay-100 ${isZenMode ? 'zen-hidden' : ''}`}></div>
+
+              <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem', flex: 1, width: '100%', position: 'relative' }}>
+                {activeTab === 'super_goal' ? (
+                  <SuperGoalView theme={theme} onNavigateToLaunchpad={() => setActiveTab('launchpad')} />
+                ) : activeTab === 'launchpad' ? (
+                  (() => {
+                    // Compute all Big Goal IDs from all Super Goals
+                    const savedSG = localStorage.getItem('chrct_super_goals');
+                    const superGoals = savedSG ? JSON.parse(savedSG) : [];
+                    const allBigGoalIds = new Set<string>();
+                    superGoals.forEach((sg: any) => {
+                      (sg.bigGoalIds || []).forEach((id: string) => allBigGoalIds.add(id));
+                    });
+                    return <TaskListView theme={theme} filterTaskIds={allBigGoalIds.size > 0 ? allBigGoalIds : undefined} />;
+                  })()
+                ) : (
+                  <CharacterCountView
+                    text={text}
+                    handleTextChange={handleTextChange}
+                    stats={stats}
+                    isZenMode={isZenMode}
+                    saveStatus={saveStatus}
+                  />
                 )}
-                <div style={{ display: 'flex', gap: '1.5rem' }}>
-                  <button onClick={handleCopy} title="Copy" className="icon-btn">
-                    <Copy size={20} />
+              </main>
+
+              <footer style={{
+                display: activeTab === 'writing' ? 'flex' : 'none',
+                justifyContent: 'space-between',
+                alignItems: isMobile ? 'center' : 'flex-end',
+                padding: '2rem 0',
+                width: '100%',
+                flexDirection: isMobile ? 'column' : 'row',
+                gap: isMobile ? '1rem' : '0'
+              }} className={`animate-in delay-400 ${isZenMode ? 'zen-hidden' : ''}`}>
+                {/* Left: Export Buttons */}
+                <div style={{ display: 'flex', gap: '1rem', justifyContent: isMobile ? 'center' : 'flex-start', width: isMobile ? '100%' : 'auto' }}>
+                  <button onClick={handleExportDocx} title="Export to Word (.docx)" className="icon-btn">
+                    <FileText size={20} />
                   </button>
-                  <button onClick={handleClear} title="Clear" className="icon-btn">
-                    <Trash2 size={20} />
+                  <button onClick={handlePrintPdf} title="Print / Save as PDF" className="icon-btn">
+                    <Printer size={20} />
+                  </button>
+                  <button onClick={handleShare} title="Share Progress" className="icon-btn">
+                    <Share2 size={20} />
                   </button>
                 </div>
-              </div>
-            </footer>
 
-            {!isMobile && (
-              <Mascot popups={popups} isAboutOpen={isAboutOpen} onToggleAbout={() => setIsAboutOpen(!isAboutOpen)} />
-            )}
+                {/* Right: Timestamp & Actions */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'center' : 'flex-end', gap: '0.5rem', width: isMobile ? '100%' : 'auto' }}>
+                  {lastSaved && (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.8, fontFamily: 'monospace' }}>
+                      Saved {lastSaved.getMonth() + 1}/{lastSaved.getDate()} {lastSaved.getHours().toString().padStart(2, '0')}:{lastSaved.getMinutes().toString().padStart(2, '0')}
+                    </span>
+                  )}
+                  <div style={{ display: 'flex', gap: '1.5rem' }}>
+                    <button onClick={handleCopy} title="Copy" className="icon-btn">
+                      <Copy size={20} />
+                    </button>
+                    <button onClick={handleClear} title="Clear" className="icon-btn">
+                      <Trash2 size={20} />
+                    </button>
+                  </div>
+                </div>
+              </footer>
 
-            <ShareModal
-              isOpen={isShareModalOpen}
-              onClose={() => setIsShareModalOpen(false)}
-              imageBlob={shareImageBlob}
-              onDownload={handleDownloadImage}
-              onShare={handleNativeShare}
-              canShare={canShare}
-            />
+              {!isMobile && (
+                <Mascot popups={popups} isAboutOpen={isAboutOpen} onToggleAbout={() => setIsAboutOpen(!isAboutOpen)} />
+              )}
 
-            <CreditModal isOpen={isCreditOpen} onClose={() => setIsCreditOpen(false)} />
+              <ShareModal
+                isOpen={isShareModalOpen}
+                onClose={() => setIsShareModalOpen(false)}
+                imageBlob={shareImageBlob}
+                onDownload={handleDownloadImage}
+                onShare={handleNativeShare}
+                canShare={canShare}
+              />
 
-            <HubSidebar
-              isOpen={isHubOpen}
-              onClose={() => setIsHubOpen(false)}
-              theme={theme}
-              setTheme={setTheme}
-              isMusicPlaying={isPlaying}
-              toggleMusic={toggleMusic}
-              musicVolume={musicVolume}
-              onVolumeChange={handleVolumeChange}
-              viewMode={viewMode}
-              text={text}
-              handleTextChange={handleTextChange}
-              stats={stats}
-              saveStatus={saveStatus}
-            />
-            {/* Right Hub Sidebar */}
-            <RightHubSidebar
-              isOpen={isHubOpen}
-              onClose={() => setIsHubOpen(false)}
-              theme={theme}
-            />
+              <CreditModal isOpen={isCreditOpen} onClose={() => setIsCreditOpen(false)} />
 
+              <HubSidebar
+                theme={theme}
+                setTheme={setTheme}
+                isMusicPlaying={isPlaying}
+                toggleMusic={toggleMusic}
+                musicVolume={musicVolume}
+                onVolumeChange={handleVolumeChange}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                text={text}
+                handleTextChange={handleTextChange}
+                stats={stats}
+                saveStatus={saveStatus}
+              />
+              {/* Right Hub Sidebar (Chore Chain) */}
+              <RightHubSidebar
+                isOpen={isChoreChainOpen}
+                onClose={() => setIsChoreChainOpen(false)}
+                theme={theme}
+              />
+
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
