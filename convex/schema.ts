@@ -18,6 +18,16 @@ export default defineSchema({
         .index("by_user", ["userId"])
         .index("by_user_parent", ["userId", "parentId"]),
 
+    superGoals: defineTable({
+        userId: v.string(),
+        text: v.string(),
+        description: v.optional(v.string()),
+        bigGoalIds: v.array(v.string()), // Array of task _id strings
+        color: v.optional(v.string()),
+        order: v.number(),
+        createdAt: v.number(),
+    }).index("by_user", ["userId"]),
+
     documents: defineTable({
         userId: v.string(),
         text: v.string(),

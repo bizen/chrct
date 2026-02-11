@@ -9,6 +9,7 @@
  */
 
 import type * as license from "../license.js";
+import type * as superGoals from "../superGoals.js";
 import type * as sync from "../sync.js";
 import type * as tasks from "../tasks.js";
 
@@ -20,6 +21,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   license: typeof license;
+  superGoals: typeof superGoals;
   sync: typeof sync;
   tasks: typeof tasks;
 }>;

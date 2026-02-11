@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Sparkles, Copy, Trash2, FileText, Printer, Share2, Snowflake, LayoutGrid } from 'lucide-react';
 import { SignedIn, SignedOut, UserButton, SignInButton } from "@clerk/clerk-react";
+import { useQuery, useConvexAuth } from 'convex/react';
+import { api } from '../convex/_generated/api';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
 import html2canvas from 'html2canvas';
@@ -764,16 +766,7 @@ function App() {
                 {activeTab === 'super_goal' ? (
                   <SuperGoalView theme={theme} onNavigateToLaunchpad={() => setActiveTab('launchpad')} />
                 ) : activeTab === 'launchpad' ? (
-                  (() => {
-                    // Compute all Big Goal IDs from all Super Goals
-                    const savedSG = localStorage.getItem('chrct_super_goals');
-                    const superGoals = savedSG ? JSON.parse(savedSG) : [];
-                    const allBigGoalIds = new Set<string>();
-                    superGoals.forEach((sg: any) => {
-                      (sg.bigGoalIds || []).forEach((id: string) => allBigGoalIds.add(id));
-                    });
-                    return <TaskListView theme={theme} filterTaskIds={allBigGoalIds.size > 0 ? allBigGoalIds : undefined} />;
-                  })()
+                  <LaunchpadWrapper theme={theme} />
                 ) : (
                   <CharacterCountView
                     text={text}
@@ -924,6 +917,20 @@ function AnimatedPart({ isVisible, text, color }: { isVisible: boolean; text: st
       </span>
     </span>
   );
+}
+
+// Launchpad: queries Super Goals from Convex to compute the task filter
+function LaunchpadWrapper({ theme }: { theme: 'dark' | 'light' | 'wallpaper' }) {
+  const { isAuthenticated } = useConvexAuth();
+  const remoteSuperGoals = useQuery(api.superGoals.get, isAuthenticated ? {} : "skip");
+  const superGoals = remoteSuperGoals || [];
+
+  const allBigGoalIds = new Set<string>();
+  superGoals.forEach((sg: any) => {
+    (sg.bigGoalIds || []).forEach((id: string) => allBigGoalIds.add(id));
+  });
+
+  return <TaskListView theme={theme} filterTaskIds={allBigGoalIds.size > 0 ? allBigGoalIds : undefined} />;
 }
 
 export default App;

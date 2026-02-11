@@ -1,9 +1,21 @@
 import { useState, useEffect } from 'react';
-import { useQuery, useConvexAuth } from 'convex/react';
+import { useQuery, useConvexAuth, useMutation } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
-import type { SuperGoal } from '../../types';
+import type { Id } from '../../../convex/_generated/dataModel';
 import { Plus, Target, ArrowRight, Edit2, Check, X, CheckCircle2, ChevronDown, ChevronUp, ArrowLeft, Rocket } from 'lucide-react';
 import { TaskListView } from './TaskListView';
+
+// Extended type to include Convex _id
+interface SuperGoalDB {
+    _id: Id<"superGoals">;
+    userId: string;
+    text: string;
+    description?: string;
+    bigGoalIds: string[];
+    color?: string;
+    order: number;
+    createdAt: number;
+}
 
 interface SuperGoalViewProps {
     theme: 'dark' | 'light' | 'wallpaper';
@@ -15,69 +27,91 @@ export function SuperGoalView({ theme, onNavigateToLaunchpad }: SuperGoalViewPro
     const { isAuthenticated } = useConvexAuth();
     const rawTasks = useQuery(api.tasks.get, isAuthenticated ? undefined : "skip") || [];
 
-    // Local State for Super Goals
-    const [superGoals, setSuperGoals] = useState<SuperGoal[]>(() => {
-        const saved = localStorage.getItem('chrct_super_goals');
-        return saved ? JSON.parse(saved) : [];
-    });
+    // Convex data for Super Goals
+    const remoteSuperGoals = useQuery(api.superGoals.get, isAuthenticated ? {} : "skip");
+    const createSuperGoalMutation = useMutation(api.superGoals.create);
+    const updateSuperGoalMutation = useMutation(api.superGoals.update);
+    const syncLocalSuperGoals = useMutation(api.superGoals.syncLocalData);
+
+    // Derive superGoals from the query result
+    const superGoals: SuperGoalDB[] = remoteSuperGoals || [];
 
     const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
     const [newGoalText, setNewGoalText] = useState('');
     const [isCreating, setIsCreating] = useState(false);
 
-    // Initial Migration logic
+    // Migration: localStorage -> Convex (runs once)
+    useEffect(() => {
+        if (!isAuthenticated) return;
+        if (remoteSuperGoals === undefined) return; // Still loading
+        if (remoteSuperGoals === null) return; // Error state
+
+        const localData = localStorage.getItem('chrct_super_goals');
+        if (!localData) return;
+
+        try {
+            const parsed = JSON.parse(localData);
+            if (Array.isArray(parsed) && parsed.length > 0 && remoteSuperGoals.length === 0) {
+                // Migrate localStorage to DB
+                syncLocalSuperGoals({ superGoals: parsed }).then(() => {
+                    localStorage.removeItem('chrct_super_goals');
+                    console.log("Super Goals migrated from localStorage to Convex DB");
+                }).catch(e => {
+                    console.error("Super Goals migration failed:", e);
+                });
+            } else {
+                // DB already has data, clear stale localStorage
+                localStorage.removeItem('chrct_super_goals');
+            }
+        } catch (e) {
+            console.error("Failed to parse local Super Goals:", e);
+            localStorage.removeItem('chrct_super_goals');
+        }
+    }, [isAuthenticated, remoteSuperGoals, syncLocalSuperGoals]);
+
+    // Auto-assign unassigned root tasks to a default Super Goal
     useEffect(() => {
         if (rawTasks.length === 0) return;
-        const currentSuperGoals = [...superGoals];
-        let defaultGoal = currentSuperGoals.find(g => g.id === 'default-super-goal');
-        let needsSave = false;
-        if (!defaultGoal) {
-            defaultGoal = {
-                id: 'default-super-goal',
-                text: 'Life Mission',
-                description: 'The overarching purpose of all current endeavors.',
-                bigGoalIds: [],
-                createdAt: Date.now(),
-                color: '#60A5FA'
-            };
-            currentSuperGoals.unshift(defaultGoal);
-            needsSave = true;
-        }
-        const assignedTaskIds = new Set<string>();
-        currentSuperGoals.forEach(sg => sg.bigGoalIds.forEach(id => assignedTaskIds.add(id)));
-        const unassignedTasks = rawTasks.filter((t: any) => !t.parentId && !assignedTaskIds.has(t._id));
-        if (unassignedTasks.length > 0) {
-            defaultGoal.bigGoalIds = [...defaultGoal.bigGoalIds, ...unassignedTasks.map((t: any) => t._id)];
-            needsSave = true;
-        }
-        if (needsSave) {
-            setSuperGoals(currentSuperGoals);
-            localStorage.setItem('chrct_super_goals', JSON.stringify(currentSuperGoals));
-        }
-    }, [rawTasks, superGoals.length]);
+        if (!remoteSuperGoals || remoteSuperGoals.length === 0) return;
 
-    // Persist changes
-    useEffect(() => {
-        localStorage.setItem('chrct_super_goals', JSON.stringify(superGoals));
-    }, [superGoals]);
+        const assignedTaskIds = new Set<string>();
+        superGoals.forEach(sg => sg.bigGoalIds.forEach(id => assignedTaskIds.add(id)));
+        const unassignedTasks = rawTasks.filter((t: any) => !t.parentId && !assignedTaskIds.has(t._id));
+
+        if (unassignedTasks.length > 0) {
+            // Find or pick the first Super Goal as default
+            const defaultGoal = superGoals[0];
+            if (defaultGoal) {
+                const newBigGoalIds = [...defaultGoal.bigGoalIds, ...unassignedTasks.map((t: any) => t._id)];
+                updateSuperGoalMutation({
+                    id: defaultGoal._id,
+                    bigGoalIds: newBigGoalIds,
+                }).catch(e => console.error("Failed to auto-assign tasks:", e));
+            }
+        }
+    }, [rawTasks, superGoals, remoteSuperGoals, updateSuperGoalMutation]);
 
     const handleCreateSuperGoal = (e: React.FormEvent) => {
         e.preventDefault();
         if (!newGoalText.trim()) return;
-        const newGoal: SuperGoal = {
-            id: Date.now().toString(),
-            text: newGoalText,
+        createSuperGoalMutation({
+            text: newGoalText.trim(),
             bigGoalIds: [],
             createdAt: Date.now(),
-            color: `hsl(${Math.random() * 360}, 70%, 60%)`
-        };
-        setSuperGoals(prev => [...prev, newGoal]);
+            color: `hsl(${Math.random() * 360}, 70%, 60%)`,
+            order: superGoals.length,
+        }).catch(e => console.error("Failed to create Super Goal:", e));
         setNewGoalText('');
         setIsCreating(false);
     };
 
-    const updateSuperGoal = (id: string, updates: Partial<SuperGoal>) => {
-        setSuperGoals(prev => prev.map(sg => sg.id === id ? { ...sg, ...updates } : sg));
+    const updateSuperGoal = (id: string, updates: Partial<SuperGoalDB>) => {
+        const { _id, userId, createdAt, ...safeUpdates } = updates as any;
+        updateSuperGoalMutation({
+            id: id as Id<"superGoals">,
+            ...safeUpdates,
+        }).catch(e => console.error("Failed to update Super Goal:", e));
+
     };
 
     const styles = {
@@ -101,7 +135,7 @@ export function SuperGoalView({ theme, onNavigateToLaunchpad }: SuperGoalViewPro
 
     // Detail View Render
     if (selectedGoalId) {
-        const selectedGoal = superGoals.find(g => g.id === selectedGoalId);
+        const selectedGoal = superGoals.find(g => g._id === selectedGoalId);
         if (selectedGoal) {
             return (
                 <SuperGoalDetail
@@ -169,12 +203,12 @@ export function SuperGoalView({ theme, onNavigateToLaunchpad }: SuperGoalViewPro
 
             {superGoals.map(sg => (
                 <SuperGoalCard
-                    key={sg.id}
+                    key={sg._id}
                     superGoal={sg}
                     rawTasks={rawTasks}
                     theme={theme}
                     onUpdate={updateSuperGoal}
-                    onNavigateToDetail={() => setSelectedGoalId(sg.id)}
+                    onNavigateToDetail={() => setSelectedGoalId(sg._id)}
                 />
             ))}
         </div>
@@ -182,10 +216,10 @@ export function SuperGoalView({ theme, onNavigateToLaunchpad }: SuperGoalViewPro
 }
 
 interface SuperGoalCardProps {
-    superGoal: SuperGoal;
+    superGoal: SuperGoalDB;
     rawTasks: any[];
     theme: 'dark' | 'light' | 'wallpaper';
-    onUpdate: (id: string, updates: Partial<SuperGoal>) => void;
+    onUpdate: (id: string, updates: Partial<SuperGoalDB>) => void;
     onNavigateToDetail: () => void;
 }
 
@@ -213,7 +247,7 @@ function SuperGoalCard({ superGoal, rawTasks, theme, onUpdate, onNavigateToDetai
     const hasMore = activeTasks.length > 3;
 
     const handleSave = () => {
-        onUpdate(superGoal.id, { text: editText, description: editDesc });
+        onUpdate(superGoal._id, { text: editText, description: editDesc });
         setIsEditing(false);
     };
 
@@ -520,7 +554,7 @@ function SuperGoalDetail({ superGoal, theme, onBack, onUpdateGoal, onNavigateToL
     const filterTaskIds = new Set<string>(superGoal.bigGoalIds || []);
 
     const handleTaskCreated = (taskId: string) => {
-        onUpdateGoal(superGoal.id, { bigGoalIds: [...(superGoal.bigGoalIds || []), taskId] });
+        onUpdateGoal(superGoal._id, { bigGoalIds: [...(superGoal.bigGoalIds || []), taskId] });
     };
 
     return (
