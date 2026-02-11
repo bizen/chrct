@@ -42,7 +42,6 @@ export interface TaskRowProps {
     };
     dragHandleAttributes?: any;
     dragHandleListeners?: any;
-    showCompleted?: boolean;
 }
 
 interface TaskInputProps {
@@ -152,7 +151,7 @@ const formatTime = (ms: number): string => {
 };
 
 export const TaskRow = ({
-    task, depth, isZoneActive, theme, firstMoveModal, firstMoveText, timeLeft, now, isMobile, showCompleted, handlers,
+    task, depth, isZoneActive, theme, firstMoveModal, now, isMobile, handlers,
     onMobileMenuOpenChange, dragHandleAttributes, dragHandleListeners
 }: TaskRowProps) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);

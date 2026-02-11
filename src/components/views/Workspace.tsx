@@ -17,6 +17,7 @@ import { HubSidebar } from '../HubSidebar';
 import { RightHubSidebar } from '../RightHubSidebar';
 import { CharacterCountView } from './CharacterCountView';
 import { TaskListView } from './TaskListView';
+import { SuperGoalView } from './SuperGoalView';
 import { CreditModal } from '../CreditModal';
 import { ShareModal } from '../ShareModal';
 import { Mascot } from '../Mascot';
@@ -82,19 +83,19 @@ export function Workspace() {
   });
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // View Mode state
-  const [viewMode, setViewMode] = useState<'charCount' | 'taskList'>(() => {
-    const saved = localStorage.getItem('chrct_view_mode');
-    return (saved as 'charCount' | 'taskList') || 'charCount';
+  // View Mode state replaced by Active Tab
+  const [activeTab, setActiveTab] = useState<'super_goal' | 'launchpad' | 'writing'>(() => {
+    const saved = localStorage.getItem('chrct_active_tab');
+    return (saved as 'super_goal' | 'launchpad' | 'writing') || 'launchpad';
   });
 
-  const toggleViewMode = () => {
-    setViewMode(prev => prev === 'charCount' ? 'taskList' : 'charCount');
+  const toggleTab = () => {
+    setActiveTab(prev => prev === 'writing' ? 'launchpad' : 'writing');
   };
 
   useEffect(() => {
-    localStorage.setItem('chrct_view_mode', viewMode);
-  }, [viewMode]);
+    localStorage.setItem('chrct_active_tab', activeTab);
+  }, [activeTab]);
 
   useEffect(() => {
     audioRef.current = new Audio(chirunoMp3);
@@ -523,7 +524,7 @@ export function Workspace() {
               </button>
 
               <button
-                onClick={toggleViewMode}
+                onClick={toggleTab}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -537,7 +538,7 @@ export function Workspace() {
                   transition: 'background-color 0.2s',
                 }}
                 className="hover-bg"
-                title={viewMode === 'charCount' ? "Switch to Task List" : "Switch to Character Count"}
+                title={activeTab === 'writing' ? "Switch to Launchpad" : "Switch to Writing Mode"}
               >
                 <RefreshCw size={20} />
               </button>
@@ -589,20 +590,25 @@ export function Workspace() {
           }} className={`animate-in delay-100 ${isZenMode ? 'zen-hidden' : ''}`}></div>
 
           <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem', flex: 1, width: '100%', position: 'relative' }}>
-            {viewMode === 'charCount' ? (
+            {activeTab === 'writing' ? (
               <CharacterCountView
                 text={text}
                 handleTextChange={handleTextChange}
                 stats={stats}
                 isZenMode={isZenMode}
               />
-            ) : (
+            ) : activeTab === 'launchpad' ? (
               <TaskListView theme={theme} />
+            ) : (
+              <SuperGoalView
+                theme={theme}
+                onNavigateToLaunchpad={() => setActiveTab('launchpad')}
+              />
             )}
           </main>
 
           <footer style={{
-            display: viewMode === 'charCount' ? 'flex' : 'none',
+            display: activeTab === 'writing' ? 'flex' : 'none',
             justifyContent: 'space-between',
             alignItems: isMobile ? 'center' : 'flex-end',
             padding: '2rem 0',
@@ -663,7 +669,8 @@ export function Workspace() {
             toggleMusic={toggleMusic}
             musicVolume={musicVolume}
             onVolumeChange={handleVolumeChange}
-            viewMode={viewMode}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
             text={text}
             handleTextChange={handleTextChange}
             stats={stats}
