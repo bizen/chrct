@@ -33,6 +33,7 @@ import { useCloudSync } from './hooks/useCloudSync';
 import { useLicense } from './hooks/useLicense';
 import { ActivationModal } from './components/ActivationModal';
 import { ActiveTaskPill } from './components/ActiveTaskPill';
+import { PageTitle } from './components/PageTitle';
 
 function App() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -930,7 +931,14 @@ function LaunchpadWrapper({ theme }: { theme: 'dark' | 'light' | 'wallpaper' }) 
     (sg.bigGoalIds || []).forEach((id: string) => allBigGoalIds.add(id));
   });
 
-  return <TaskListView theme={theme} filterTaskIds={allBigGoalIds.size > 0 ? allBigGoalIds : undefined} />;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <PageTitle title="launchpad" />
+      <div style={{ flex: 1 }}>
+        <TaskListView theme={theme} filterTaskIds={allBigGoalIds.size > 0 ? allBigGoalIds : undefined} />
+      </div>
+    </div>
+  );
 }
 
 export default App;

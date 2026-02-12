@@ -402,7 +402,15 @@ const TaskContent = ({
                         ? '2px solid var(--accent-color)'
                         : (isPrompting
                             ? '2px solid #EF4444'
-                            : '1px solid var(--border-color)'),
+                            : (depth === 0 && !isCompleted
+                                ? 'none'
+                                : '1px solid var(--border-color)')),
+                    borderTop: (depth === 0 && !isCompleted && !isThisActive && !isPrompting)
+                        ? '1px solid var(--text-secondary)'
+                        : undefined,
+                    borderLeft: (depth === 0 && !isCompleted && !isThisActive && !isPrompting)
+                        ? '1px solid var(--text-secondary)'
+                        : undefined,
                     borderBottom: isPrompting ? 'none' : (isThisActive ? '2px solid var(--accent-color)' : undefined),
                     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                     opacity: isDisabled ? 0.3 : (isCompleted ? 0.8 : 1),

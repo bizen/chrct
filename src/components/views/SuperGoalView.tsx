@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useQuery, useConvexAuth, useMutation } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { Plus, Target, ArrowRight, Edit2, Check, X, CheckCircle2, ChevronDown, ChevronUp, ArrowLeft, Rocket, Trash2 } from 'lucide-react';
+import { Plus, ArrowRight, Edit2, Check, X, CheckCircle2, ChevronDown, ChevronUp, ArrowLeft, Rocket, Trash2 } from 'lucide-react';
 import { TaskListView } from './TaskListView';
+import { PageTitle } from '../PageTitle';
 
 // Extended type to include Convex _id
 interface SuperGoalDB {
@@ -140,7 +141,7 @@ export function SuperGoalView({ theme, onNavigateToLaunchpad }: SuperGoalViewPro
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: '1rem',
+            marginBottom: '0',
         }
     };
 
@@ -166,10 +167,7 @@ export function SuperGoalView({ theme, onNavigateToLaunchpad }: SuperGoalViewPro
     return (
         <div style={styles.container}>
             <div style={styles.header}>
-                <h1 style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-0.04em', margin: 0, display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <Target size={40} color="var(--accent-color)" />
-                    Super Goals
-                </h1>
+                <PageTitle title="super goals" />
 
                 {!isCreating ? (
                     <button
@@ -333,6 +331,11 @@ function DeleteConfirmModal({ theme, goalName, onConfirm, onCancel }: {
 
 
 
+const PRESET_COLORS = [
+    '#EF4444', '#F97316', '#F59E0B', '#84CC16', '#10B981',
+    '#06B6D4', '#3B82F6', '#6366F1', '#8B5CF6', '#EC4899', '#64748B'
+];
+
 interface SuperGoalCardProps {
     superGoal: SuperGoalDB;
     rawTasks: any[];
@@ -344,6 +347,7 @@ interface SuperGoalCardProps {
 
 function SuperGoalCard({ superGoal, rawTasks, theme, onUpdate, onDelete, onNavigateToDetail }: SuperGoalCardProps) {
     const [isEditing, setIsEditing] = useState(false);
+    const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
     const [editText, setEditText] = useState(superGoal.text);
     const [editDesc, setEditDesc] = useState(superGoal.description || '');
     const [isExpanded, setIsExpanded] = useState(false);
@@ -506,13 +510,74 @@ function SuperGoalCard({ superGoal, rawTasks, theme, onUpdate, onDelete, onNavig
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <h2 style={styles.title}>
-                                <span style={{
-                                    width: '12px',
-                                    height: '12px',
-                                    borderRadius: '50%',
-                                    backgroundColor: superGoal.color,
-                                    flexShrink: 0
-                                }} />
+                                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); setIsColorPickerOpen(!isColorPickerOpen); }}
+                                        style={{
+                                            width: '16px',
+                                            height: '16px',
+                                            borderRadius: '50%',
+                                            backgroundColor: superGoal.color,
+                                            flexShrink: 0,
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            padding: 0,
+                                            transition: 'transform 0.2s',
+                                            boxShadow: '0 0 0 2px transparent'
+                                        }}
+                                        className="hover-scale"
+                                        title="Change Color"
+                                    />
+                                    {isColorPickerOpen && (
+                                        <>
+                                            <div
+                                                style={{ position: 'fixed', inset: 0, zIndex: 100, cursor: 'default' }}
+                                                onClick={(e) => { e.stopPropagation(); setIsColorPickerOpen(false); }}
+                                            />
+                                            <div style={{
+                                                position: 'absolute',
+                                                top: '24px',
+                                                left: '-8px',
+                                                zIndex: 101,
+                                                backgroundColor: theme === 'light' ? 'white' : '#1e1e23',
+                                                padding: '12px',
+                                                borderRadius: '16px',
+                                                boxShadow: '0 10px 40px -10px rgba(0,0,0,0.5), 0 0 0 1px var(--border-color)',
+                                                display: 'grid',
+                                                gridTemplateColumns: 'repeat(4, 1fr)',
+                                                gap: '8px',
+                                                width: 'max-content',
+                                                cursor: 'default',
+                                            }} onClick={e => e.stopPropagation()}>
+                                                {PRESET_COLORS.map(c => (
+                                                    <button
+                                                        key={c}
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onUpdate(superGoal._id, { color: c });
+                                                            setIsColorPickerOpen(false);
+                                                        }}
+                                                        style={{
+                                                            width: '24px',
+                                                            height: '24px',
+                                                            borderRadius: '50%',
+                                                            backgroundColor: c,
+                                                            border: 'none',
+                                                            cursor: 'pointer',
+                                                            padding: 0,
+                                                            transform: superGoal.color === c ? 'scale(1.1)' : 'scale(1)',
+                                                            boxShadow: superGoal.color === c ? '0 0 0 2px var(--text-primary)' : 'none',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                        title={c}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
                                 {superGoal.text}
                                 <button
                                     onClick={() => setIsEditing(true)}
@@ -733,6 +798,7 @@ function SuperGoalDetail({ superGoal, theme, allSuperGoals, updateSuperGoalMutat
             flexDirection: 'column',
             height: '100%',
         }}>
+            <PageTitle title="management" />
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
                 <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '0.5rem', borderRadius: '50%', backgroundColor: theme === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)' }}>
@@ -740,7 +806,7 @@ function SuperGoalDetail({ superGoal, theme, allSuperGoals, updateSuperGoalMutat
                 </button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
                     <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: superGoal.color }} />
-                    <h1 style={{ fontSize: '2rem', fontWeight: 800, margin: 0 }}>{superGoal.text}</h1>
+                    <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>{superGoal.text}</h1>
                 </div>
                 <button
                     onClick={onNavigateToLaunchpad}
