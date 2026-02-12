@@ -34,8 +34,7 @@ export class ErrorBoundary extends Component<Props, State> {
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    fontFamily: 'sans-serif'
+                    justifyContent: 'center'
                 }}>
                     <h1 style={{ fontSize: '2rem', marginBottom: '1rem' }}>Something went wrong</h1>
                     <pre style={{

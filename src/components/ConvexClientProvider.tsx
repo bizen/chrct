@@ -32,7 +32,7 @@ export function ConvexClientProvider({ children }: { children: ReactNode }) {
             }}>
                 <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', color: '#EF4444' }}>Configuration Error</h2>
                 <p>Missing environment variables.</p>
-                <div style={{ textAlign: 'left', background: '#1e293b', padding: '1rem', borderRadius: '8px', marginTop: '1rem', fontFamily: 'monospace' }}>
+                <div style={{ textAlign: 'left', background: '#1e293b', padding: '1rem', borderRadius: '8px', marginTop: '1rem' }}>
                     <p style={{ color: convex ? '#10B981' : '#EF4444' }}>
                         VITE_CONVEX_URL: {convex ? 'Set' : 'Missing'}
                     </p>

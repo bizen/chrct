@@ -632,7 +632,7 @@ export function Workspace() {
             {/* Right: Timestamp & Actions */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'center' : 'flex-end', gap: '0.5rem', width: isMobile ? '100%' : 'auto' }}>
               {lastSaved && (
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.8, fontFamily: 'monospace' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.8 }}>
                   Saved {lastSaved.getMonth() + 1}/{lastSaved.getDate()} {lastSaved.getHours().toString().padStart(2, '0')}:{lastSaved.getMinutes().toString().padStart(2, '0')}
                 </span>
               )}

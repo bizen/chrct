@@ -371,7 +371,6 @@ function App() {
 
             {/* Boot messages */}
             <div style={{
-              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
               fontSize: '0.8rem',
               color: '#475569',
               lineHeight: 1.8,
@@ -804,7 +803,7 @@ function App() {
                 {/* Right: Timestamp & Actions */}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'center' : 'flex-end', gap: '0.5rem', width: isMobile ? '100%' : 'auto' }}>
                   {lastSaved && (
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.8, fontFamily: 'monospace' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.8 }}>
                       Saved {lastSaved.getMonth() + 1}/{lastSaved.getDate()} {lastSaved.getHours().toString().padStart(2, '0')}:{lastSaved.getMinutes().toString().padStart(2, '0')}
                     </span>
                   )}
@@ -927,15 +926,23 @@ function LaunchpadWrapper({ theme }: { theme: 'dark' | 'light' | 'wallpaper' }) 
   const superGoals = remoteSuperGoals || [];
 
   const allBigGoalIds = new Set<string>();
+  const taskColors = new Map<string, string>();
   superGoals.forEach((sg: any) => {
-    (sg.bigGoalIds || []).forEach((id: string) => allBigGoalIds.add(id));
+    (sg.bigGoalIds || []).forEach((id: string) => {
+      allBigGoalIds.add(id);
+      if (sg.color) taskColors.set(id, sg.color);
+    });
   });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PageTitle title="launchpad" />
       <div style={{ flex: 1 }}>
-        <TaskListView theme={theme} filterTaskIds={allBigGoalIds.size > 0 ? allBigGoalIds : undefined} />
+        <TaskListView
+          theme={theme}
+          filterTaskIds={allBigGoalIds.size > 0 ? allBigGoalIds : undefined}
+          taskColors={taskColors}
+        />
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useConvexAuth, useMutation } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
@@ -172,21 +172,23 @@ export function SuperGoalView({ theme, onNavigateToLaunchpad }: SuperGoalViewPro
                 {!isCreating ? (
                     <button
                         onClick={() => setIsCreating(true)}
-                        className="hover-scale"
+                        className="hover-opacity"
                         style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '0.5rem',
-                            padding: '0.75rem 1.25rem',
-                            borderRadius: '12px',
-                            background: 'var(--accent-color)',
-                            color: 'white',
-                            border: 'none',
-                            fontWeight: 600,
+                            gap: '0.4rem',
+                            padding: '0.5rem 0.75rem',
+                            borderRadius: '8px',
+                            background: theme === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)',
+                            color: 'var(--text-primary)',
+                            border: '1px solid transparent',
+                            fontWeight: 500,
                             cursor: 'pointer',
+                            fontSize: '0.9rem',
+                            transition: 'all 0.2s',
                         }}
                     >
-                        <Plus size={20} />
+                        <Plus size={16} />
                         New Super Goal
                     </button>
                 ) : (
@@ -197,13 +199,14 @@ export function SuperGoalView({ theme, onNavigateToLaunchpad }: SuperGoalViewPro
                             onChange={e => setNewGoalText(e.target.value)}
                             placeholder="Enter Super Goal title..."
                             style={{
-                                padding: '0.75rem 1rem',
-                                borderRadius: '12px',
-                                border: '1px solid var(--border-color)',
+                                padding: '0.5rem 0.75rem',
+                                borderRadius: '8px',
+                                border: '1px solid var(--accent-color)',
                                 background: 'var(--card-bg)',
                                 color: 'var(--text-primary)',
                                 outline: 'none',
-                                fontSize: '1rem',
+                                fontSize: '0.9rem',
+                                minWidth: '200px'
                             }}
                             onBlur={() => !newGoalText && setIsCreating(false)}
                         />
@@ -752,7 +755,7 @@ function SuperGoalCard({ superGoal, rawTasks, theme, onUpdate, onDelete, onNavig
 
 // ... SuperGoalDetail Component ...
 function SuperGoalDetail({ superGoal, theme, allSuperGoals, updateSuperGoalMutation, onBack, onUpdateGoal, onNavigateToLaunchpad }: any) {
-    const filterTaskIds = new Set<string>(superGoal.bigGoalIds || []);
+    const filterTaskIds = useMemo(() => new Set<string>(superGoal.bigGoalIds || []), [superGoal.bigGoalIds]);
 
     const handleTaskCreated = (taskId: string) => {
         onUpdateGoal(superGoal._id, { bigGoalIds: [...(superGoal.bigGoalIds || []), taskId] });
@@ -837,6 +840,7 @@ function SuperGoalDetail({ superGoal, theme, allSuperGoals, updateSuperGoalMutat
                     filterTaskIds={filterTaskIds}
                     onTaskCreated={handleTaskCreated}
                     superGoalContext={superGoalContext}
+                    defaultColor={superGoal.color}
                 />
             </div>
         </div>

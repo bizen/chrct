@@ -79,6 +79,7 @@ interface TaskRowProps {
     isMobileMenuOpen?: boolean;
     onMobileMenuOpenChange?: (isOpen: boolean) => void;
     superGoalContext?: SuperGoalContextType;
+    customColor?: string;
     handlers: {
         updateTaskStatus: (id: string, status: 'idle' | 'active' | 'completed') => void;
         updateTaskText: (id: string, text: string) => void;
@@ -343,7 +344,7 @@ function MoveBigGoalButton({ taskId, otherSuperGoals, onMove, theme }: {
 
 const TaskContent = ({
     task, depth, isZoneActive, theme, firstMoveModal, firstMoveText, timeLeft, now, isMobile, showCompleted, superGoalContext, handlers,
-    onMobileMenuOpenChange, dragHandleAttributes, dragHandleListeners
+    onMobileMenuOpenChange, dragHandleAttributes, dragHandleListeners, customColor
 }: TaskRowProps & { dragHandleAttributes?: any, dragHandleListeners?: any }) => {
     // Memoized Input Component Logic extracted to TaskInput above
     // TaskContent now delegates input rendering to TaskInput.
@@ -393,11 +394,13 @@ const TaskContent = ({
                     padding: isMobile ? '0.9rem 0.3rem' : '1rem',
                     position: 'relative',
                     borderRadius: isPrompting ? '16px 16px 0 0' : (isMobile ? '12px' : '16px'),
-                    backgroundColor: isThisActive
-                        ? (theme === 'light' ? '#eff6ff' : 'rgba(96, 165, 250, 0.1)')
-                        : (isCompleted
-                            ? 'transparent'
-                            : 'var(--card-bg)'),
+                    backgroundColor: (depth === 0 && !isCompleted && !isThisActive && customColor)
+                        ? `color-mix(in srgb, ${customColor}, transparent 92%)`
+                        : (isThisActive
+                            ? (theme === 'light' ? '#eff6ff' : 'rgba(96, 165, 250, 0.1)')
+                            : (isCompleted
+                                ? 'transparent'
+                                : 'var(--card-bg)')),
                     border: isThisActive
                         ? '2px solid var(--accent-color)'
                         : (isPrompting
@@ -406,10 +409,10 @@ const TaskContent = ({
                                 ? 'none'
                                 : '1px solid var(--border-color)')),
                     borderTop: (depth === 0 && !isCompleted && !isThisActive && !isPrompting)
-                        ? '1px solid var(--text-secondary)'
+                        ? `1px solid ${customColor || 'var(--text-secondary)'}`
                         : undefined,
                     borderLeft: (depth === 0 && !isCompleted && !isThisActive && !isPrompting)
-                        ? '1px solid var(--text-secondary)'
+                        ? `1px solid ${customColor || 'var(--text-secondary)'}`
                         : undefined,
                     borderBottom: isPrompting ? 'none' : (isThisActive ? '2px solid var(--accent-color)' : undefined),
                     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -885,9 +888,11 @@ interface TaskListViewProps {
     filterTaskIds?: Set<string>;
     onTaskCreated?: (taskId: string) => void;
     superGoalContext?: SuperGoalContextType;
+    taskColors?: Map<string, string>;
+    defaultColor?: string;
 }
 
-export function TaskListView({ theme, filterTaskIds, onTaskCreated, superGoalContext }: TaskListViewProps) {
+export function TaskListView({ theme, filterTaskIds, onTaskCreated, superGoalContext, taskColors, defaultColor }: TaskListViewProps) {
     // Convex Hooks
     const { isAuthenticated, isLoading } = useConvexAuth();
     const rawTasks = useQuery(api.tasks.get, isAuthenticated ? {} : "skip");
@@ -1567,6 +1572,7 @@ export function TaskListView({ theme, filterTaskIds, onTaskCreated, superGoalCon
                                                 key={task.id}
                                                 task={task}
                                                 depth={0}
+                                                customColor={taskColors?.get(task.id) || defaultColor}
                                                 isZoneActive={false} // Top level handled by isAnyTaskActive logic
                                                 theme={theme}
                                                 firstMoveModal={firstMoveModal}

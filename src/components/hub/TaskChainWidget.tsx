@@ -396,8 +396,6 @@ export const TaskChainWidget: React.FC<TaskChainWidgetProps> = ({ theme }) => {
                         <div style={{
                             fontSize: '2.2rem',
                             fontWeight: 700,
-                            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                            letterSpacing: '-0.02em',
                             color: '#60A5FA',
                             lineHeight: 1,
                         }}>
@@ -554,7 +552,6 @@ export const TaskChainWidget: React.FC<TaskChainWidgetProps> = ({ theme }) => {
                             <span style={{
                                 fontSize: '0.72rem',
                                 fontWeight: 600,
-                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
                                 color: isDark ? 'rgba(255,255,255,0.5)' : '#6b7280',
                                 minWidth: '32px',
                                 textAlign: 'center',
@@ -777,7 +774,6 @@ export const TaskChainWidget: React.FC<TaskChainWidgetProps> = ({ theme }) => {
                     fontSize: '0.68rem',
                     fontWeight: 500,
                     color: isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)',
-                    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
                 }}>
                     {hasChainStarted ? 'Remaining' : 'Total'}: {formatTime(totalRemaining)}
                 </div>
