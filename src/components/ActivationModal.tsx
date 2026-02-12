@@ -34,9 +34,11 @@ export function ActivationModal({ isOpen, onActivate, isLoading, error }: Activa
             backdropFilter: 'blur(12px)',
             zIndex: 99999,
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'center',
-            padding: '2rem'
+            padding: '2rem',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch'
         }}>
             <div style={{
                 maxWidth: '900px',
@@ -44,7 +46,11 @@ export function ActivationModal({ isOpen, onActivate, isLoading, error }: Activa
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: '3rem'
+                gap: '3rem',
+                marginTop: 'auto',
+                marginBottom: 'auto',
+                paddingTop: '2rem',
+                paddingBottom: '2rem'
             }}>
 
                 {/* Header */}

@@ -33,6 +33,18 @@ export function ActiveTaskPill() {
         return () => clearInterval(interval);
     }, [activeTask]);
 
+    // Update the browser tab title with the active task name
+    useEffect(() => {
+        if (activeTask) {
+            document.title = `${activeTask.text} | chrct`;
+        } else {
+            document.title = 'chrct';
+        }
+        return () => {
+            document.title = 'chrct';
+        };
+    }, [activeTask]);
+
     if (!activeTask) return null;
 
     const formatTime = (ms: number) => {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, memo } from 'react';
-import { Plus, Check, Trash2, GitBranch, GripVertical, Clock, Repeat, Eye, EyeOff } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Plus, Check, Trash2, GitBranch, GripVertical, Clock, Repeat, Eye, EyeOff, MoveRight } from 'lucide-react';
 import {
     DndContext,
     closestCenter,
@@ -58,6 +59,12 @@ const isAnyTaskActive = (tasks: Task[]): boolean => {
     return tasks.some(t => t.status === 'active' || (t.subtasks && isAnyTaskActive(t.subtasks)));
 };
 
+interface SuperGoalContextType {
+    currentSuperGoalId: string;
+    otherSuperGoals: { id: string; text: string; color?: string }[];
+    onMoveBigGoal: (taskId: string, toSuperGoalId: string) => void;
+}
+
 interface TaskRowProps {
     task: Task;
     depth: number;
@@ -71,6 +78,7 @@ interface TaskRowProps {
     showCompleted: boolean; // Added prop
     isMobileMenuOpen?: boolean;
     onMobileMenuOpenChange?: (isOpen: boolean) => void;
+    superGoalContext?: SuperGoalContextType;
     handlers: {
         updateTaskStatus: (id: string, status: 'idle' | 'active' | 'completed') => void;
         updateTaskText: (id: string, text: string) => void;
@@ -184,8 +192,157 @@ const SortableTaskRow = (props: TaskRowProps) => {
     );
 };
 
+
+// --- Move Big Goal Button (for Big Goals Management view) ---
+function MoveBigGoalButton({ taskId, otherSuperGoals, onMove, theme }: {
+    taskId: string;
+    otherSuperGoals: { id: string; text: string; color?: string }[];
+    onMove: (taskId: string, toSuperGoalId: string) => void;
+    theme: string;
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const btnRef = useRef<HTMLButtonElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+    const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
+
+    // Calculate position when opening
+    useEffect(() => {
+        if (!isOpen || !btnRef.current) return;
+        const rect = btnRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const spaceAbove = rect.top;
+        const estimatedHeight = otherSuperGoals.length * 40 + 40; // rough estimate
+
+        let top: number;
+        if (spaceBelow >= estimatedHeight || spaceBelow >= spaceAbove) {
+            top = rect.bottom + 4;
+        } else {
+            top = rect.top - estimatedHeight - 4;
+        }
+
+        setMenuStyle({
+            position: 'fixed',
+            top: `${Math.max(8, top)}px`,
+            left: `${Math.min(rect.right, window.innerWidth - 240)}px`,
+            transform: 'translateX(-100%)',
+            zIndex: 99999,
+        });
+    }, [isOpen, otherSuperGoals.length]);
+
+    // Close on outside click
+    useEffect(() => {
+        if (!isOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+                btnRef.current && !btnRef.current.contains(e.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [isOpen]);
+
+    // Close on scroll
+    useEffect(() => {
+        if (!isOpen) return;
+        const handler = () => setIsOpen(false);
+        window.addEventListener('scroll', handler, true);
+        return () => window.removeEventListener('scroll', handler, true);
+    }, [isOpen]);
+
+    return (
+        <>
+            <button
+                ref={btnRef}
+                onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+                title="Move to another Super Goal"
+                style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    padding: '6px',
+                    opacity: 0.5,
+                    transition: 'all 0.2s',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+                <MoveRight size={18} />
+            </button>
+
+            {isOpen && createPortal(
+                <div
+                    ref={dropdownRef}
+                    style={{
+                        ...menuStyle,
+                        backgroundColor: theme === 'light' ? '#fff' : '#2a2a30',
+                        borderRadius: '12px',
+                        border: theme === 'light' ? '1px solid rgba(0,0,0,0.1)' : '1px solid rgba(255,255,255,0.1)',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                        minWidth: '220px',
+                        overflow: 'hidden',
+                    }}
+                >
+                    <div style={{
+                        padding: '0.5rem 0.75rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        opacity: 0.5,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        color: theme === 'light' ? '#1f2937' : 'white',
+                    }}>
+                        Move to Super Goal...
+                    </div>
+                    {otherSuperGoals.map(sg => (
+                        <button
+                            key={sg.id}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onMove(taskId, sg.id);
+                                setIsOpen(false);
+                            }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                width: '100%',
+                                padding: '0.6rem 0.75rem',
+                                background: 'transparent',
+                                border: 'none',
+                                color: theme === 'light' ? '#1f2937' : 'white',
+                                cursor: 'pointer',
+                                fontSize: '0.9rem',
+                                fontWeight: 500,
+                                transition: 'background 0.15s',
+                                textAlign: 'left',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = theme === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.08)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                            <span style={{
+                                width: '10px',
+                                height: '10px',
+                                borderRadius: '50%',
+                                backgroundColor: sg.color || 'var(--accent-color)',
+                                flexShrink: 0,
+                            }} />
+                            {sg.text}
+                        </button>
+                    ))}
+                </div>,
+                document.body
+            )}
+        </>
+    );
+}
+
 const TaskContent = ({
-    task, depth, isZoneActive, theme, firstMoveModal, firstMoveText, timeLeft, now, isMobile, showCompleted, handlers,
+    task, depth, isZoneActive, theme, firstMoveModal, firstMoveText, timeLeft, now, isMobile, showCompleted, superGoalContext, handlers,
     onMobileMenuOpenChange, dragHandleAttributes, dragHandleListeners
 }: TaskRowProps & { dragHandleAttributes?: any, dragHandleListeners?: any }) => {
     // Memoized Input Component Logic extracted to TaskInput above
@@ -575,6 +732,16 @@ const TaskContent = ({
                         </button>
                     )}
 
+                    {/* Desktop Only: Move to another Super Goal */}
+                    {!isMobile && depth === 0 && !isZoneActive && !isCompleted && superGoalContext && superGoalContext.otherSuperGoals.length > 0 && (
+                        <MoveBigGoalButton
+                            taskId={task.id}
+                            otherSuperGoals={superGoalContext.otherSuperGoals}
+                            onMove={superGoalContext.onMoveBigGoal}
+                            theme={theme}
+                        />
+                    )}
+
                     {/* Desktop Only: Delete */}
                     {!isMobile && !isZoneActive && !isCompleted && (
                         <button
@@ -709,9 +876,10 @@ interface TaskListViewProps {
     theme: 'dark' | 'light' | 'wallpaper';
     filterTaskIds?: Set<string>;
     onTaskCreated?: (taskId: string) => void;
+    superGoalContext?: SuperGoalContextType;
 }
 
-export function TaskListView({ theme, filterTaskIds, onTaskCreated }: TaskListViewProps) {
+export function TaskListView({ theme, filterTaskIds, onTaskCreated, superGoalContext }: TaskListViewProps) {
     // Convex Hooks
     const { isAuthenticated, isLoading } = useConvexAuth();
     const rawTasks = useQuery(api.tasks.get, isAuthenticated ? {} : "skip");
@@ -798,7 +966,13 @@ export function TaskListView({ theme, filterTaskIds, onTaskCreated }: TaskListVi
     }, [rawTasks, filterTaskIds]);
 
     const [newTask, setNewTask] = useState('');
-    const [showCompleted, setShowCompleted] = useState(true);
+    const [showCompleted, setShowCompleted] = useState(() => {
+        const saved = localStorage.getItem('chrct_showCompleted');
+        return saved !== null ? JSON.parse(saved) : true;
+    });
+    useEffect(() => {
+        localStorage.setItem('chrct_showCompleted', JSON.stringify(showCompleted));
+    }, [showCompleted]);
 
     // Migration Logic
     useEffect(() => {
@@ -1393,6 +1567,7 @@ export function TaskListView({ theme, filterTaskIds, onTaskCreated }: TaskListVi
                                                 now={now}
                                                 isMobile={isMobile}
                                                 showCompleted={showCompleted}
+                                                superGoalContext={superGoalContext}
                                                 handlers={handlers}
                                             />
                                         ))}
@@ -1432,6 +1607,7 @@ export function TaskListView({ theme, filterTaskIds, onTaskCreated }: TaskListVi
                                             now={now}
                                             isMobile={isMobile}
                                             showCompleted={showCompleted}
+                                            superGoalContext={superGoalContext}
                                             handlers={handlers}
                                         />
                                     ))}

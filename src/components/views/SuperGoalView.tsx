@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useConvexAuth, useMutation } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { Plus, Target, ArrowRight, Edit2, Check, X, CheckCircle2, ChevronDown, ChevronUp, ArrowLeft, Rocket } from 'lucide-react';
+import { Plus, Target, ArrowRight, Edit2, Check, X, CheckCircle2, ChevronDown, ChevronUp, ArrowLeft, Rocket, Trash2 } from 'lucide-react';
 import { TaskListView } from './TaskListView';
 
 // Extended type to include Convex _id
@@ -31,6 +31,7 @@ export function SuperGoalView({ theme, onNavigateToLaunchpad }: SuperGoalViewPro
     const remoteSuperGoals = useQuery(api.superGoals.get, isAuthenticated ? {} : "skip");
     const createSuperGoalMutation = useMutation(api.superGoals.create);
     const updateSuperGoalMutation = useMutation(api.superGoals.update);
+    const removeSuperGoalMutation = useMutation(api.superGoals.remove);
     const syncLocalSuperGoals = useMutation(api.superGoals.syncLocalData);
 
     // Derive superGoals from the query result
@@ -39,6 +40,7 @@ export function SuperGoalView({ theme, onNavigateToLaunchpad }: SuperGoalViewPro
     const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
     const [newGoalText, setNewGoalText] = useState('');
     const [isCreating, setIsCreating] = useState(false);
+    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
     // Migration: localStorage -> Convex (runs once)
     useEffect(() => {
@@ -114,6 +116,15 @@ export function SuperGoalView({ theme, onNavigateToLaunchpad }: SuperGoalViewPro
 
     };
 
+    const handleDeleteSuperGoal = (id: string) => {
+        removeSuperGoalMutation({
+            id: id as Id<"superGoals">,
+        }).catch(e => console.error("Failed to delete Super Goal:", e));
+        setDeleteConfirmId(null);
+    };
+
+
+
     const styles = {
         container: {
             display: 'flex',
@@ -142,6 +153,8 @@ export function SuperGoalView({ theme, onNavigateToLaunchpad }: SuperGoalViewPro
                     superGoal={selectedGoal}
                     rawTasks={rawTasks}
                     theme={theme}
+                    allSuperGoals={superGoals}
+                    updateSuperGoalMutation={updateSuperGoalMutation}
                     onBack={() => setSelectedGoalId(null)}
                     onUpdateGoal={updateSuperGoal}
                     onNavigateToLaunchpad={onNavigateToLaunchpad}
@@ -208,22 +221,128 @@ export function SuperGoalView({ theme, onNavigateToLaunchpad }: SuperGoalViewPro
                     rawTasks={rawTasks}
                     theme={theme}
                     onUpdate={updateSuperGoal}
+                    onDelete={() => setDeleteConfirmId(sg._id)}
                     onNavigateToDetail={() => setSelectedGoalId(sg._id)}
                 />
             ))}
+
+            {/* Delete Confirmation Modal */}
+            {deleteConfirmId && (
+                <DeleteConfirmModal
+                    theme={theme}
+                    goalName={superGoals.find(g => g._id === deleteConfirmId)?.text || ''}
+                    onConfirm={() => handleDeleteSuperGoal(deleteConfirmId)}
+                    onCancel={() => setDeleteConfirmId(null)}
+                />
+            )}
         </div>
     );
 }
+
+// --- Delete Confirmation Modal ---
+function DeleteConfirmModal({ theme, goalName, onConfirm, onCancel }: {
+    theme: string;
+    goalName: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+}) {
+    return (
+        <div style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+        }} onClick={onCancel}>
+            <div
+                onClick={e => e.stopPropagation()}
+                style={{
+                    backgroundColor: theme === 'light' ? '#fff' : '#1e1e23',
+                    borderRadius: '20px',
+                    padding: '2rem',
+                    maxWidth: '420px',
+                    width: '90%',
+                    boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+                    border: theme === 'light' ? '1px solid rgba(0,0,0,0.1)' : '1px solid rgba(255,255,255,0.1)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1.5rem',
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '12px',
+                        backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }}>
+                        <Trash2 size={20} color="#ef4444" />
+                    </div>
+                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: theme === 'light' ? '#1f2937' : 'white' }}>
+                        Delete Super Goal
+                    </h3>
+                </div>
+
+                <p style={{ margin: 0, fontSize: '0.95rem', opacity: 0.7, lineHeight: 1.5, color: theme === 'light' ? '#1f2937' : 'white' }}>
+                    Are you sure you want to delete <strong>"{goalName}"</strong>?
+                    The Big Goals inside will become unassigned and will be reassigned to another Super Goal automatically.
+                </p>
+
+                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                    <button
+                        onClick={onCancel}
+                        style={{
+                            padding: '0.6rem 1.2rem',
+                            borderRadius: '10px',
+                            border: theme === 'light' ? '1px solid rgba(0,0,0,0.15)' : '1px solid rgba(255,255,255,0.15)',
+                            background: 'transparent',
+                            color: theme === 'light' ? '#1f2937' : 'white',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            fontSize: '0.9rem',
+                        }}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        style={{
+                            padding: '0.6rem 1.2rem',
+                            borderRadius: '10px',
+                            border: 'none',
+                            background: '#ef4444',
+                            color: 'white',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            fontSize: '0.9rem',
+                        }}
+                    >
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+
 
 interface SuperGoalCardProps {
     superGoal: SuperGoalDB;
     rawTasks: any[];
     theme: 'dark' | 'light' | 'wallpaper';
     onUpdate: (id: string, updates: Partial<SuperGoalDB>) => void;
+    onDelete: () => void;
     onNavigateToDetail: () => void;
 }
 
-function SuperGoalCard({ superGoal, rawTasks, theme, onUpdate, onNavigateToDetail }: SuperGoalCardProps) {
+function SuperGoalCard({ superGoal, rawTasks, theme, onUpdate, onDelete, onNavigateToDetail }: SuperGoalCardProps) {
     const [isEditing, setIsEditing] = useState(false);
     const [editText, setEditText] = useState(superGoal.text);
     const [editDesc, setEditDesc] = useState(superGoal.description || '');
@@ -263,7 +382,7 @@ function SuperGoalCard({ superGoal, rawTasks, theme, onUpdate, onNavigateToDetai
             gap: '1.5rem',
             transition: 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)',
             position: 'relative' as const,
-            overflow: 'hidden',
+            overflow: 'visible' as const,
         },
         cardHeader: {
             display: 'flex',
@@ -412,6 +531,22 @@ function SuperGoalCard({ superGoal, rawTasks, theme, onUpdate, onNavigateToDetai
                                 >
                                     <Edit2 size={18} />
                                 </button>
+                                <button
+                                    onClick={onDelete}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: '#ef4444',
+                                        cursor: 'pointer',
+                                        padding: '0.5rem',
+                                        opacity: 0.4,
+                                        transition: 'opacity 0.2s',
+                                    }}
+                                    className="hover-opacity"
+                                    title="Delete Super Goal"
+                                >
+                                    <Trash2 size={18} />
+                                </button>
                             </h2>
                             {superGoal.description && (
                                 <p style={{ margin: '0 0 0 1.5rem', opacity: 0.6, fontSize: '0.95rem' }}>
@@ -476,7 +611,8 @@ function SuperGoalCard({ superGoal, rawTasks, theme, onUpdate, onNavigateToDetai
                             backgroundColor: 'transparent',
                         }} />
                         <span style={{
-                            fontWeight: 500
+                            fontWeight: 500,
+                            flex: 1,
                         }}>
                             {bg.text}
                         </span>
@@ -550,12 +686,42 @@ function SuperGoalCard({ superGoal, rawTasks, theme, onUpdate, onNavigateToDetai
 }
 
 // ... SuperGoalDetail Component ...
-function SuperGoalDetail({ superGoal, theme, onBack, onUpdateGoal, onNavigateToLaunchpad }: any) {
+function SuperGoalDetail({ superGoal, theme, allSuperGoals, updateSuperGoalMutation, onBack, onUpdateGoal, onNavigateToLaunchpad }: any) {
     const filterTaskIds = new Set<string>(superGoal.bigGoalIds || []);
 
     const handleTaskCreated = (taskId: string) => {
         onUpdateGoal(superGoal._id, { bigGoalIds: [...(superGoal.bigGoalIds || []), taskId] });
     };
+
+    const handleMoveBigGoal = (taskId: string, toSuperGoalId: string) => {
+        const toGoal = allSuperGoals.find((sg: SuperGoalDB) => sg._id === toSuperGoalId);
+        if (!toGoal) return;
+
+        // Remove from current Super Goal
+        const newFromIds = (superGoal.bigGoalIds || []).filter((id: string) => id !== taskId);
+        // Add to destination (avoid duplicates)
+        const newToIds = toGoal.bigGoalIds.includes(taskId)
+            ? toGoal.bigGoalIds
+            : [...toGoal.bigGoalIds, taskId];
+
+        updateSuperGoalMutation({
+            id: superGoal._id,
+            bigGoalIds: newFromIds,
+        }).catch((e: any) => console.error("Failed to remove task from source Super Goal:", e));
+
+        updateSuperGoalMutation({
+            id: toGoal._id,
+            bigGoalIds: newToIds,
+        }).catch((e: any) => console.error("Failed to add task to destination Super Goal:", e));
+    };
+
+    // Build superGoalContext for TaskListView
+    const otherSuperGoals = allSuperGoals.filter((sg: SuperGoalDB) => sg._id !== superGoal._id);
+    const superGoalContext = otherSuperGoals.length > 0 ? {
+        currentSuperGoalId: superGoal._id,
+        otherSuperGoals: otherSuperGoals.map((sg: SuperGoalDB) => ({ id: sg._id, text: sg.text, color: sg.color })),
+        onMoveBigGoal: handleMoveBigGoal,
+    } : undefined;
 
     return (
         <div style={{
@@ -604,6 +770,7 @@ function SuperGoalDetail({ superGoal, theme, onBack, onUpdateGoal, onNavigateToL
                     theme={theme}
                     filterTaskIds={filterTaskIds}
                     onTaskCreated={handleTaskCreated}
+                    superGoalContext={superGoalContext}
                 />
             </div>
         </div>
