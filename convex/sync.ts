@@ -14,7 +14,10 @@ const getUser = async (ctx: any) => {
 export const getDocument = query({
     args: {},
     handler: async (ctx) => {
-        const identity = await getUser(ctx);
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return null;
+        }
         const doc = await ctx.db
             .query("documents")
             .withIndex("by_user", (q) => q.eq("userId", identity.subject))
