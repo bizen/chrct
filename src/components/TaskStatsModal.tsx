@@ -3,7 +3,7 @@ import { X, BarChart, Trophy, Calendar, Zap, Clock, Hourglass, Target } from 'lu
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useConvexAuth } from 'convex/react';
 import { api } from '../../convex/_generated/api';
-import { TaskCommitWidget } from './hub/TaskCommitWidget';
+
 
 interface TaskStatsModalProps {
     isOpen: boolean;
@@ -289,23 +289,7 @@ export function TaskStatsModal({ isOpen, onClose, theme }: TaskStatsModalProps) 
                         </div>
                     </div>
 
-                    {/* Secondary: Activity Map (The original widget) */}
-                    <div style={{
-                        padding: '1.5rem',
-                        borderRadius: '24px',
-                        backgroundColor: theme === 'light' ? '#f9fafb' : 'rgba(255,255,255,0.03)',
-                        border: `1px solid ${borderColor} `,
-                        display: 'flex',
-                        flexDirection: 'column'
-                    }}>
-                        <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.5rem' }}>Yearly Map</h3>
-                        <p style={{ fontSize: '0.85rem', color: subTextColor, marginBottom: '1rem' }}>
-                            Commit density over the last year.
-                        </p>
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflowX: 'auto', width: '100%' }}>
-                            <TaskCommitWidget theme={theme} historyData={history} />
-                        </div>
-                    </div>
+
 
                 </div>
 

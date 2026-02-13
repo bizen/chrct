@@ -79,7 +79,12 @@ export function SuperGoalView({ theme, onNavigateToLaunchpad }: SuperGoalViewPro
 
         const assignedTaskIds = new Set<string>();
         superGoals.forEach(sg => sg.bigGoalIds.forEach(id => assignedTaskIds.add(id)));
-        const unassignedTasks = rawTasks.filter((t: any) => !t.parentId && !assignedTaskIds.has(t._id));
+        const unassignedTasks = rawTasks.filter((t: any) => {
+            // Only auto-assign if it's not a subtask, not already assigned, AND created more than 5 seconds ago
+            // to allow manual assignment to propagate and avoid race conditions.
+            const isRecent = (Date.now() - t._creationTime) < 5000;
+            return !t.parentId && !assignedTaskIds.has(t._id) && !isRecent;
+        });
 
         if (unassignedTasks.length > 0) {
             // Find or pick the first Super Goal as default

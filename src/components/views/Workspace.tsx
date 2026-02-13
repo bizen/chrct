@@ -14,7 +14,7 @@ import chirunoMp3 from '../../assets/chiruno.mp3';
 
 // Components
 import { HubSidebar } from '../HubSidebar';
-import { RightHubSidebar } from '../RightHubSidebar';
+
 import { CharacterCountView } from './CharacterCountView';
 import { TaskListView } from './TaskListView';
 import { SuperGoalView } from './SuperGoalView';
@@ -671,16 +671,8 @@ export function Workspace() {
             onVolumeChange={handleVolumeChange}
             activeTab={activeTab}
             onTabChange={setActiveTab}
-            text={text}
-            handleTextChange={handleTextChange}
-            stats={stats}
           />
-          {/* Right Hub Sidebar (Chore Chain) */}
-          <RightHubSidebar
-            isOpen={isChoreChainOpen}
-            onClose={() => setIsChoreChainOpen(false)}
-            theme={theme}
-          />
+
 
         </div>
       </div>

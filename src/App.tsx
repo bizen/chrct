@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Sparkles, Copy, Trash2, FileText, Printer, Share2, Snowflake, LayoutGrid } from 'lucide-react';
+import { Sparkles, Copy, Trash2, FileText, Printer, Share2, Snowflake } from 'lucide-react';
 import { SignedIn, SignedOut, UserButton, SignInButton } from "@clerk/clerk-react";
 import { useQuery, useConvexAuth } from 'convex/react';
 import { api } from '../convex/_generated/api';
@@ -17,7 +17,6 @@ import cirnoImg from './assets/cirno.png';
 
 // Components
 import { HubSidebar } from './components/HubSidebar';
-import { RightHubSidebar } from './components/RightHubSidebar';
 import { CharacterCountView } from './components/views/CharacterCountView';
 import { TaskListView } from './components/views/TaskListView';
 import { CreditModal } from './components/CreditModal';
@@ -70,10 +69,7 @@ function App() {
     return (saved as 'dark' | 'light' | 'wallpaper') || 'wallpaper';
   });
   const [isAboutOpen, setIsAboutOpen] = useState(false);
-  const [isChoreChainOpen, setIsChoreChainOpen] = useState(() => {
-    const saved = localStorage.getItem('chrct_chore_chain_open');
-    return saved ? JSON.parse(saved) : false;
-  });
+
 
   // Header interaction states
   const [isHeaderHovered, setIsHeaderHovered] = useState(false);
@@ -157,9 +153,7 @@ function App() {
     localStorage.setItem('chrct_theme', theme);
   }, [theme]);
 
-  useEffect(() => {
-    localStorage.setItem('chrct_chore_chain_open', JSON.stringify(isChoreChainOpen));
-  }, [isChoreChainOpen]);
+
 
   useEffect(() => {
     const characters = text.length;
@@ -297,10 +291,7 @@ function App() {
       setTimeout(() => setZenFlash(false), 500);
     }
     setIsZenMode(!isZenMode);
-    // Close ChoreChain if open
-    if (!isZenMode && isChoreChainOpen) {
-      setIsChoreChainOpen(false);
-    }
+
   };
 
   const canShare = (navigator as any).share &&
@@ -694,25 +685,7 @@ function App() {
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => setIsChoreChainOpen(!isChoreChainOpen)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'inherit',
-                      cursor: 'pointer',
-                      padding: '0.5rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderRadius: '8px',
-                      transition: 'background-color 0.2s',
-                    }}
-                    className="hover-bg"
-                    title="Toggle Chore Chain"
-                  >
-                    <LayoutGrid size={20} />
-                  </button>
+
 
 
 
@@ -842,17 +815,9 @@ function App() {
                 onVolumeChange={handleVolumeChange}
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
-                text={text}
-                handleTextChange={handleTextChange}
-                stats={stats}
-                saveStatus={saveStatus}
+
               />
-              {/* Right Hub Sidebar (Chore Chain) */}
-              <RightHubSidebar
-                isOpen={isChoreChainOpen}
-                onClose={() => setIsChoreChainOpen(false)}
-                theme={theme}
-              />
+
 
             </div>
           </div>

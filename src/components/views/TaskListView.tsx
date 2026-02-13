@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, memo } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Check, Trash2, GitBranch, GripVertical, Clock, Repeat, Eye, EyeOff, MoveRight } from 'lucide-react';
+import { Plus, Check, Trash2, GitBranch, GripVertical, Clock, Repeat, Eye, EyeOff, MoveRight, ChevronDown } from 'lucide-react';
 import {
     DndContext,
     closestCenter,
@@ -901,6 +901,10 @@ export function TaskListView({ theme, filterTaskIds, onTaskCreated, superGoalCon
     const deleteTaskMutation = useMutation(api.tasks.remove);
     const syncLocal = useMutation(api.tasks.syncLocalData);
 
+    // New Hooks for Super Goal selection in Launchpad
+    const superGoals = useQuery(api.superGoals.get, isAuthenticated ? {} : "skip") || [];
+    const updateSuperGoalMutation = useMutation(api.superGoals.update);
+
     // Responsive State
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
     useEffect(() => {
@@ -979,6 +983,7 @@ export function TaskListView({ theme, filterTaskIds, onTaskCreated, superGoalCon
     }, [rawTasks, filterTaskIds]);
 
     const [newTask, setNewTask] = useState('');
+    const [selectedSuperGoalId, setSelectedSuperGoalId] = useState('');
     const [showCompleted, setShowCompleted] = useState(() => {
         const saved = localStorage.getItem('chrct_showCompleted');
         return saved !== null ? JSON.parse(saved) : true;
@@ -1107,11 +1112,34 @@ export function TaskListView({ theme, filterTaskIds, onTaskCreated, superGoalCon
     const addTask = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newTask.trim()) return;
+
+        // Mandatory Super Goal selection in Launchpad
+        if (!superGoalContext && !selectedSuperGoalId) {
+            alert("Please select a Super Goal for this task.");
+            return;
+        }
+
         const taskId = await addTaskMutation({
             text: newTask.trim(),
             status: 'idle',
             order: tasks.length || 0, // Append to end of root
         });
+
+        // Assign to Super Goal if in Launchpad
+        if (!superGoalContext && selectedSuperGoalId && taskId) {
+            const targetSG = superGoals.find((sg: any) => sg._id === selectedSuperGoalId);
+            if (targetSG) {
+                const newBigGoalIds = [...(targetSG.bigGoalIds || []), taskId];
+                updateSuperGoalMutation({
+                    id: targetSG._id,
+                    bigGoalIds: newBigGoalIds,
+                }).catch(e => {
+                    console.error("Failed to assign task to Super Goal:", e);
+                    alert("Task created but failed to assign to Super Goal.");
+                });
+            }
+        }
+
         if (onTaskCreated && taskId) {
             onTaskCreated(taskId as string);
         }
@@ -1387,28 +1415,69 @@ export function TaskListView({ theme, filterTaskIds, onTaskCreated, superGoalCon
                 <>
                     <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '1rem', alignItems: 'stretch' }}>
                         <form onSubmit={addTask} style={{ display: 'flex', gap: isMobile ? '0.75rem' : '1rem', flex: 1 }}>
-                            <input
-                                type="text"
-                                value={newTask}
-                                onChange={(e) => setNewTask(e.target.value)}
-                                placeholder={isAnyTaskActive(tasks) ? "Finish active task first..." : "Add a new task..."}
-                                disabled={isAnyTaskActive(tasks)}
-                                style={{
-                                    flex: 1,
-                                    padding: isMobile ? '0.85rem 1rem' : '1rem 1.5rem',
-                                    backgroundColor: 'var(--card-bg)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: isMobile ? '10px' : '12px',
-                                    color: 'var(--text-primary)',
-                                    fontSize: isMobile ? '1rem' : '1.2rem',
-                                    outline: 'none',
-                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                                    fontFamily: 'inherit',
-                                    opacity: isAnyTaskActive(tasks) ? 0.5 : 1,
-                                    cursor: isAnyTaskActive(tasks) ? 'not-allowed' : 'text',
-                                    transition: 'all 0.2s'
-                                }}
-                            />
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                backgroundColor: 'var(--card-bg)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: isMobile ? '10px' : '12px',
+                                paddingRight: '0.5rem',
+                                flex: 1,
+                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                                transition: 'all 0.2s',
+                                opacity: isAnyTaskActive(tasks) ? 0.5 : 1,
+                            }}>
+                                <input
+                                    type="text"
+                                    value={newTask}
+                                    onChange={(e) => setNewTask(e.target.value)}
+                                    placeholder={isAnyTaskActive(tasks) ? "Finish active task first..." : "Add a new task..."}
+                                    disabled={isAnyTaskActive(tasks)}
+                                    style={{
+                                        flex: 1,
+                                        padding: isMobile ? '0.85rem 1rem' : '1rem 1.5rem',
+                                        backgroundColor: 'transparent',
+                                        border: 'none',
+                                        color: 'var(--text-primary)',
+                                        fontSize: isMobile ? '1rem' : '1.2rem',
+                                        outline: 'none',
+                                        fontFamily: 'inherit',
+                                        cursor: isAnyTaskActive(tasks) ? 'not-allowed' : 'text',
+                                        minWidth: 0,
+                                    }}
+                                />
+                                {!superGoalContext && (
+                                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                        <select
+                                            value={selectedSuperGoalId}
+                                            onChange={(e) => setSelectedSuperGoalId(e.target.value)}
+                                            disabled={isAnyTaskActive(tasks)}
+                                            style={{
+                                                appearance: 'none',
+                                                backgroundColor: 'rgba(0,0,0,0.05)',
+                                                border: 'none',
+                                                borderRadius: '6px',
+                                                padding: '0.4rem 2rem 0.4rem 0.8rem',
+                                                fontSize: '0.8rem',
+                                                color: selectedSuperGoalId ? 'var(--text-primary)' : 'var(--text-secondary)',
+                                                cursor: 'pointer',
+                                                outline: 'none',
+                                                maxWidth: '120px',
+                                                fontWeight: 600,
+                                                textOverflow: 'ellipsis'
+                                            }}
+                                        >
+                                            <option value="" disabled>Select Goal</option>
+                                            {superGoals?.map((sg: any) => (
+                                                <option key={sg._id} value={sg._id}>{sg.text}</option>
+                                            ))}
+                                        </select>
+                                        <div style={{ position: 'absolute', right: '0.6rem', pointerEvents: 'none', opacity: 0.5 }}>
+                                            <ChevronDown size={14} />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                             <button
                                 type="submit"
                                 disabled={isAnyTaskActive(tasks)}

@@ -1,14 +1,11 @@
 import { useState, useEffect } from 'react';
-import { LayoutGrid, BarChart, Target, Rocket, ChevronLeft, ChevronRight, Pen } from 'lucide-react';
+import { LayoutGrid, BarChart, Target, Rocket, ChevronLeft, ChevronRight, Pen, Maximize2 } from 'lucide-react';
 import { useUser } from "@clerk/clerk-react";
 import { ClockWidget } from './hub/ClockWidget';
 import { ThemeWidget } from './hub/ThemeWidget';
-import { InfoWidget } from './hub/InfoWidget';
 import { MusicWidget } from './hub/MusicWidget';
-import { TaskListWidget } from './hub/TaskListWidget';
-import { CharacterCountWidget } from './hub/CharacterCountWidget';
+import { TaskChainWidget } from './hub/TaskChainWidget';
 import { TaskStatsModal } from './TaskStatsModal';
-import type { SyncStatus } from '../hooks/useCloudSync';
 
 interface HubSidebarProps {
     theme: 'dark' | 'light' | 'wallpaper';
@@ -21,17 +18,6 @@ interface HubSidebarProps {
     // Updated Navigation Props
     activeTab: 'super_goal' | 'launchpad' | 'writing';
     onTabChange: (tab: 'super_goal' | 'launchpad' | 'writing') => void;
-
-    text: string;
-    handleTextChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-    stats: {
-        characters: number;
-        words: number;
-        sentences: number;
-        paragraphs: number;
-        spaces: number;
-    };
-    saveStatus?: SyncStatus;
 }
 
 export function HubSidebar({
@@ -42,16 +28,12 @@ export function HubSidebar({
     musicVolume,
     onVolumeChange,
     activeTab,
-    onTabChange,
-    text,
-    handleTextChange,
-    stats,
-    saveStatus
+    onTabChange
 }: HubSidebarProps) {
-    const [weather, setWeather] = useState<{ temp: number; code: number; city: string } | null>(null);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
     const { isSignedIn } = useUser();
     const [isStatsOpen, setIsStatsOpen] = useState(false);
+    const [isTaskChainPopupOpen, setIsTaskChainPopupOpen] = useState(false);
 
     // New States for the Hub Structure
     const [isExpanded, setIsExpanded] = useState(() => {
@@ -68,39 +50,6 @@ export function HubSidebar({
     useEffect(() => {
         localStorage.setItem('chrct_hub_expanded', JSON.stringify(isExpanded));
     }, [isExpanded]);
-
-    useEffect(() => {
-        const fetchWeather = async (lat: number, lon: number, city: string) => {
-            try {
-                const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code`);
-                const data = await res.json();
-                setWeather({
-                    temp: Math.round(data.current.temperature_2m),
-                    code: data.current.weather_code,
-                    city,
-                });
-            } catch (e) {
-                console.error("Weather fetch failed", e);
-            }
-        };
-
-
-        // Default: West Melbourne
-        const defaultLocation = { lat: -37.8136, lon: 144.9631, city: "West Melbourne" };
-
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    fetchWeather(position.coords.latitude, position.coords.longitude, "Current Location");
-                },
-                () => {
-                    fetchWeather(defaultLocation.lat, defaultLocation.lon, defaultLocation.city);
-                }
-            );
-        } else {
-            fetchWeather(defaultLocation.lat, defaultLocation.lon, defaultLocation.city);
-        }
-    }, []);
 
     // Theme styles helper
     const glassStyle = {
@@ -252,27 +201,6 @@ export function HubSidebar({
 
                         {/* Widgets */}
                         <ClockWidget theme={theme} />
-                        <InfoWidget theme={theme} weather={weather} />
-
-                        {/* Show Character Count Widget always (as info) or conditionally? 
-                            User said "Writing Mode" is 3rd icon. 
-                            Let's keep showing widgets regardless of main view mode, 
-                            but maybe adapt 'TaskListWidget' usage.
-                            For now, keeping logic simple: show TaskListWidget only if NOT writing?
-                            Actually, let's just keep the widgets consistent.
-                        */}
-
-                        {activeTab === 'writing' ? (
-                            <CharacterCountWidget
-                                text={text}
-                                handleTextChange={handleTextChange}
-                                stats={stats}
-                                theme={theme}
-                                saveStatus={saveStatus}
-                            />
-                        ) : (
-                            <TaskListWidget theme={theme} onlyInput={true} />
-                        )}
 
                         <MusicWidget
                             theme={theme}
@@ -288,7 +216,6 @@ export function HubSidebar({
                             <button
                                 onClick={() => setIsStatsOpen(true)}
                                 style={{
-                                    marginTop: 'auto',
                                     width: '100%',
                                     padding: '0.75rem',
                                     borderRadius: '12px',
@@ -309,11 +236,104 @@ export function HubSidebar({
                                 View Task Stats
                             </button>
                         )}
+
+                        {/* Separator */}
+                        <div style={{
+                            height: '1px',
+                            backgroundColor: theme === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
+                            margin: '0.5rem 0',
+                            width: '100%'
+                        }} />
+
+                        {/* Task Chain Section with Maximize */}
+                        <div style={{ position: 'relative' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+                                <button
+                                    onClick={() => setIsTaskChainPopupOpen(true)}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: 'var(--text-secondary)',
+                                        cursor: 'pointer',
+                                        padding: '4px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        fontSize: '0.75rem',
+                                        opacity: 0.7,
+                                    }}
+                                    className="hover-opacity"
+                                    title="Maximize Task Chain"
+                                >
+                                    <Maximize2 size={16} />
+                                </button>
+                            </div>
+                            <TaskChainWidget theme={theme} />
+                        </div>
+
                     </div>
                 </div>
             </div>
 
             <TaskStatsModal isOpen={isStatsOpen} onClose={() => setIsStatsOpen(false)} theme={theme} />
+
+            {/* Task Chain Popup Modal */}
+            {isTaskChainPopupOpen && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.7)',
+                    backdropFilter: 'blur(5px)',
+                    zIndex: 100,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '2rem',
+                }}
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setIsTaskChainPopupOpen(false);
+                    }}
+                    className="animate-in fade-in"
+                >
+                    <div style={{
+                        backgroundColor: theme === 'light' ? '#fff' : '#1e293b',
+                        borderRadius: '24px',
+                        padding: '2rem',
+                        width: '100%',
+                        maxWidth: '600px',
+                        maxHeight: '80vh',
+                        overflowY: 'auto',
+                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                        position: 'relative',
+                        border: '1px solid var(--border-color)',
+                    }}>
+                        <button
+                            onClick={() => setIsTaskChainPopupOpen(false)}
+                            style={{
+                                position: 'absolute',
+                                top: '1.5rem',
+                                right: '1.5rem',
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: 'var(--text-secondary)'
+                            }}
+                        >
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+
+                        <h2 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1.5rem' }}>
+                            <LayoutGrid size={24} color="var(--accent-color)" />
+                            Task Chain
+                        </h2>
+
+                        <TaskChainWidget theme={theme} />
+                    </div>
+                </div>
+            )}
         </>
     );
 }
