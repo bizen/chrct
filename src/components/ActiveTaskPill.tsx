@@ -38,10 +38,10 @@ export function ActiveTaskPill() {
         if (activeTask) {
             document.title = `${activeTask.text} | chrct`;
         } else {
-            document.title = 'chrct';
+            document.title = 'chrct.com';
         }
         return () => {
-            document.title = 'chrct';
+            document.title = 'chrct.com';
         };
     }, [activeTask]);
 

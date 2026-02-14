@@ -5,6 +5,7 @@ import { ClockWidget } from './hub/ClockWidget';
 import { ThemeWidget } from './hub/ThemeWidget';
 import { MusicWidget } from './hub/MusicWidget';
 import { TaskChainWidget } from './hub/TaskChainWidget';
+import { TaskChainProvider } from './hub/TaskChainContext';
 import { TaskStatsModal } from './TaskStatsModal';
 
 interface HubSidebarProps {
@@ -18,6 +19,10 @@ interface HubSidebarProps {
     // Updated Navigation Props
     activeTab: 'super_goal' | 'launchpad' | 'writing';
     onTabChange: (tab: 'super_goal' | 'launchpad' | 'writing') => void;
+
+    // Mobile Support
+    mobileOpen?: boolean;
+    onMobileClose?: () => void;
 }
 
 export function HubSidebar({
@@ -28,7 +33,9 @@ export function HubSidebar({
     musicVolume,
     onVolumeChange,
     activeTab,
-    onTabChange
+    onTabChange,
+    mobileOpen,
+    onMobileClose
 }: HubSidebarProps) {
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
     const { isSignedIn } = useUser();
@@ -75,14 +82,95 @@ export function HubSidebar({
         outline: 'none',
     });
 
-    if (isMobile) return null; // Simplified for mobile for now based on request focusing on layout
+    if (isMobile && !mobileOpen) return null;
+
+    if (isMobile && mobileOpen) {
+        return (
+            <TaskChainProvider>
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    backgroundColor: 'rgba(0,0,0,0.6)',
+                    backdropFilter: 'blur(4px)',
+                    zIndex: 2000,
+                    display: 'flex',
+                    alignItems: 'flex-end', // Bottom sheet style
+                }} onClick={onMobileClose}>
+                    <div className="no-scrollbar" style={{
+                        width: '100%',
+                        maxHeight: '85vh',
+                        backgroundColor: theme === 'light' ? '#fff' : '#1e1e23',
+                        borderTopLeftRadius: '24px',
+                        borderTopRightRadius: '24px',
+                        padding: '1.5rem',
+                        overflowY: 'auto',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1.5rem',
+                        animation: 'fadeInUp 0.3s ease-out'
+                    }} onClick={e => e.stopPropagation()}>
+
+                        {/* Header with Close */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem', color: theme === 'light' ? '#1f2937' : 'white' }}>
+                                <LayoutGrid size={24} color="var(--accent-color)" />
+                                Hub
+                            </h2>
+                            <button onClick={onMobileClose} style={{ background: 'none', border: 'none', padding: '0.5rem', color: 'var(--text-secondary)' }}>
+                                <ChevronRight size={24} style={{ transform: 'rotate(90deg)' }} />
+                            </button>
+                        </div>
+
+                        {/* Widgets reused */}
+                        <ClockWidget theme={theme} />
+                        <MusicWidget
+                            theme={theme}
+                            isMusicPlaying={isMusicPlaying}
+                            toggleMusic={toggleMusic}
+                            musicVolume={musicVolume}
+                            onVolumeChange={onVolumeChange}
+                        />
+                        <ThemeWidget theme={theme} setTheme={setTheme} />
+
+                        {isSignedIn && (
+                            <button
+                                onClick={() => setIsStatsOpen(true)}
+                                style={{
+                                    width: '100%',
+                                    padding: '1rem',
+                                    borderRadius: '12px',
+                                    border: 'none',
+                                    backgroundColor: theme === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)',
+                                    color: theme === 'light' ? '#1f2937' : 'white',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '0.5rem',
+                                    fontWeight: 600,
+                                }}
+                            >
+                                <BarChart size={20} />
+                                View Task Stats
+                            </button>
+                        )}
+
+                        <div style={{ position: 'relative' }}>
+                            <TaskChainWidget theme={theme} />
+                        </div>
+                    </div>
+                </div>
+                <TaskStatsModal isOpen={isStatsOpen} onClose={() => setIsStatsOpen(false)} theme={theme} />
+            </TaskChainProvider>
+        );
+    }
 
     return (
-        <>
+        <TaskChainProvider>
             <div
                 style={{
                     position: 'fixed',
-                    top: '6rem', // Match App padding/header
+                    top: '6rem',
                     left: '1rem',
                     bottom: '2rem',
                     display: 'flex',
@@ -303,8 +391,8 @@ export function HubSidebar({
                         borderRadius: '24px',
                         padding: '2rem',
                         width: '100%',
-                        maxWidth: '600px',
-                        maxHeight: '80vh',
+                        maxWidth: '800px', // Increased from 600px
+                        maxHeight: '90vh', // Increased from 80vh
                         overflowY: 'auto',
                         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
                         position: 'relative',
@@ -330,10 +418,10 @@ export function HubSidebar({
                             Task Chain
                         </h2>
 
-                        <TaskChainWidget theme={theme} />
+                        <TaskChainWidget theme={theme} isExpanded={true} />
                     </div>
                 </div>
             )}
-        </>
+        </TaskChainProvider>
     );
 }

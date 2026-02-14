@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, memo } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Check, Trash2, GitBranch, GripVertical, Clock, Repeat, Eye, EyeOff, MoveRight, ChevronDown } from 'lucide-react';
+import { Plus, Check, Trash2, GitBranch, GripVertical, Clock, Repeat, Eye, EyeOff, MoveRight, ChevronDown, Sparkles } from 'lucide-react';
 import {
     DndContext,
     closestCenter,
@@ -21,6 +21,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { useConvexAuth, useQuery, useMutation } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
+
+import { useAI } from '../../context/AIContext';
 
 interface Task {
     id: string;
@@ -913,6 +915,8 @@ export function TaskListView({ theme, filterTaskIds, onTaskCreated, superGoalCon
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
+    const { deconstruct, isGenerating } = useAI();
+
     const tasks = useMemo(() => {
         if (!rawTasks) return [];
         // Reconstruct Tree from Flat List
@@ -1287,11 +1291,7 @@ export function TaskListView({ theme, filterTaskIds, onTaskCreated, superGoalCon
                 updates.totalTime = (task.totalTime || 0) + (Date.now() - task.activeSince);
                 updates.activeSince = undefined; // clear activeSince? Backend patch needs explicit handling or just don't send it?
                 // convex patch: undefined keys are ignored. null is needed to unset?
-                // Convex schema: optional fields. To unset, we might need `null` if we changed schema to allow nulls.
-                // OR passing special value. 
-                // Actually, if I just don't send activeSince, it stays. I need to unset it.
-                // For now, I'll update it to 0 or null? 
-                // Schema: `v.optional(v.number())`. To remove it, `activeSince: undefined` doesn't work in `patch`.
+                // Convex schema: optional fields. To remove it, `activeSince: undefined` doesn't work in `patch`.
                 // We need to use `activeSince: undefined`? No, that just doesn't include it.
                 // Convex usually requires `activeSince: null` but schema must match `v.union(v.number(), v.null())`.
                 // Current schema: `v.optional(v.number())`.
@@ -1413,58 +1413,97 @@ export function TaskListView({ theme, filterTaskIds, onTaskCreated, superGoalCon
 
             {isAuthenticated && (
                 <>
-                    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '1rem', alignItems: 'stretch' }}>
-                        <form onSubmit={addTask} style={{ display: 'flex', gap: isMobile ? '0.75rem' : '1rem', flex: 1 }}>
-                            <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                backgroundColor: 'var(--card-bg)',
-                                border: '1px solid var(--border-color)',
-                                borderRadius: isMobile ? '10px' : '12px',
-                                paddingRight: '0.5rem',
-                                flex: 1,
-                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                                transition: 'all 0.2s',
-                                opacity: isAnyTaskActive(tasks) ? 0.5 : 1,
-                            }}>
-                                <input
-                                    type="text"
-                                    value={newTask}
-                                    onChange={(e) => setNewTask(e.target.value)}
-                                    placeholder={isAnyTaskActive(tasks) ? "Finish active task first..." : "Add a new task..."}
+                    {isMobile ? (
+                        // --- Mobile Layout ---
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            {/* Row 1: Text Input & Add Button */}
+                            <form onSubmit={addTask} style={{ display: 'flex', gap: '0.6rem' }}>
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    backgroundColor: 'var(--card-bg)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '12px',
+                                    flex: 1,
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                                    opacity: isAnyTaskActive(tasks) ? 0.6 : 1,
+                                }}>
+                                    <input
+                                        type="text"
+                                        value={newTask}
+                                        onChange={(e) => setNewTask(e.target.value)}
+                                        placeholder={isAnyTaskActive(tasks) ? "Finish active task..." : "Add a new task..."}
+                                        disabled={isAnyTaskActive(tasks)}
+                                        style={{
+                                            flex: 1,
+                                            padding: '0 1rem',
+                                            height: '48px', // High touch target
+                                            backgroundColor: 'transparent',
+                                            border: 'none',
+                                            color: 'var(--text-primary)',
+                                            fontSize: '1rem',
+                                            outline: 'none',
+                                            fontFamily: 'inherit',
+                                            cursor: isAnyTaskActive(tasks) ? 'not-allowed' : 'text',
+                                            minWidth: 0,
+                                        }}
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
                                     disabled={isAnyTaskActive(tasks)}
                                     style={{
-                                        flex: 1,
-                                        padding: isMobile ? '0.85rem 1rem' : '1rem 1.5rem',
-                                        backgroundColor: 'transparent',
+                                        background: 'var(--accent-color)',
                                         border: 'none',
-                                        color: 'var(--text-primary)',
-                                        fontSize: isMobile ? '1rem' : '1.2rem',
-                                        outline: 'none',
-                                        fontFamily: 'inherit',
-                                        cursor: isAnyTaskActive(tasks) ? 'not-allowed' : 'text',
-                                        minWidth: 0,
+                                        borderRadius: '12px',
+                                        width: '48px',
+                                        height: '48px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: 'white',
+                                        cursor: isAnyTaskActive(tasks) ? 'not-allowed' : 'pointer',
+                                        transition: 'all 0.2s',
+                                        opacity: isAnyTaskActive(tasks) ? 0.3 : 1,
+                                        flexShrink: 0,
+                                        boxShadow: '0 4px 12px rgba(var(--accent-color-rgb), 0.3)',
                                     }}
-                                />
+                                    className="active:scale-95"
+                                >
+                                    <Plus size={24} strokeWidth={2.5} />
+                                </button>
+                            </form>
+
+                            {/* Row 2: Secondary Controls */}
+                            <div style={{ display: 'flex', gap: '0.6rem', height: '42px' }}>
                                 {!superGoalContext && (
-                                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                    <div style={{
+                                        flex: 1,
+                                        position: 'relative',
+                                        backgroundColor: 'var(--card-bg)',
+                                        borderRadius: '12px',
+                                        border: '1px solid var(--border-color)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        padding: '0 0.5rem',
+                                        opacity: isAnyTaskActive(tasks) ? 0.5 : 1,
+                                        minWidth: 0, // Flex fix
+                                    }}>
                                         <select
                                             value={selectedSuperGoalId}
                                             onChange={(e) => setSelectedSuperGoalId(e.target.value)}
                                             disabled={isAnyTaskActive(tasks)}
                                             style={{
+                                                width: '100%',
+                                                height: '100%',
                                                 appearance: 'none',
-                                                backgroundColor: 'rgba(0,0,0,0.05)',
+                                                background: 'transparent',
                                                 border: 'none',
-                                                borderRadius: '6px',
-                                                padding: '0.4rem 2rem 0.4rem 0.8rem',
-                                                fontSize: '0.8rem',
                                                 color: selectedSuperGoalId ? 'var(--text-primary)' : 'var(--text-secondary)',
-                                                cursor: 'pointer',
+                                                fontSize: '0.85rem',
+                                                fontWeight: 500,
+                                                padding: '0 1.5rem 0 0.5rem',
                                                 outline: 'none',
-                                                maxWidth: '120px',
-                                                fontWeight: 600,
-                                                textOverflow: 'ellipsis'
                                             }}
                                         >
                                             <option value="" disabled>Select Goal</option>
@@ -1472,135 +1511,294 @@ export function TaskListView({ theme, filterTaskIds, onTaskCreated, superGoalCon
                                                 <option key={sg._id} value={sg._id}>{sg.text}</option>
                                             ))}
                                         </select>
-                                        <div style={{ position: 'absolute', right: '0.6rem', pointerEvents: 'none', opacity: 0.5 }}>
+                                        <div style={{ position: 'absolute', right: '0.75rem', pointerEvents: 'none', color: 'var(--text-secondary)' }}>
                                             <ChevronDown size={14} />
                                         </div>
                                     </div>
                                 )}
+
+                                {/* AI Sparkles Button */}
+                                <button
+                                    onClick={async () => {
+                                        const targetSGId = superGoalContext ? (superGoalContext as any)._id : selectedSuperGoalId;
+                                        if (!targetSGId) {
+                                            alert("Please select a Super Goal first.");
+                                            return;
+                                        }
+                                        try {
+                                            const newTaskId = await addTaskMutation({
+                                                text: newTask,
+                                                status: 'idle',
+                                                order: 9999,
+                                            });
+                                            const targetSG = superGoals?.find((sg: any) => sg._id === targetSGId);
+                                            if (targetSG && newTaskId) {
+                                                await updateSuperGoalMutation({
+                                                    id: targetSG._id,
+                                                    bigGoalIds: [...(targetSG.bigGoalIds || []), newTaskId]
+                                                });
+                                                deconstruct(newTask, targetSGId, newTaskId);
+                                                setNewTask('');
+                                            }
+                                        } catch (e) {
+                                            console.error("Failed to start AI deconstruction:", e);
+                                        }
+                                    }}
+                                    disabled={isAnyTaskActive(tasks) || !newTask.trim() || isGenerating}
+                                    style={{
+                                        flex: superGoalContext ? 1 : 'unset', // Grow if no select goal
+                                        width: superGoalContext ? 'auto' : '48px',
+                                        borderRadius: '12px',
+                                        border: '1px solid var(--accent-color)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: 'var(--accent-color)',
+                                        background: 'rgba(var(--accent-color-rgb), 0.05)',
+                                        transition: 'all 0.2s',
+                                        opacity: (isAnyTaskActive(tasks) || !newTask.trim() || isGenerating) ? 0.5 : 1,
+                                        boxShadow: (isAnyTaskActive(tasks) || !newTask.trim() || isGenerating) ? 'none' : '0 2px 8px rgba(var(--accent-color-rgb), 0.15)'
+                                    }}
+                                    className="active:scale-95"
+                                >
+                                    <Sparkles size={20} />
+                                    {superGoalContext && <span style={{ fontSize: '0.85rem', fontWeight: 600, marginLeft: '6px' }}>Deconstruct</span>}
+                                </button>
+
+                                {/* Hide Completed Button */}
+                                <button
+                                    onClick={() => setShowCompleted(!showCompleted)}
+                                    style={{
+                                        flex: superGoalContext ? 1 : 'unset',
+                                        width: superGoalContext ? 'auto' : '48px',
+                                        borderRadius: '12px',
+                                        border: '1px solid var(--border-color)',
+                                        background: showCompleted ? 'var(--accent-color)' : 'var(--card-bg)',
+                                        color: showCompleted ? 'white' : 'var(--text-secondary)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: 'all 0.2s',
+                                    }}
+                                    className="active:scale-95"
+                                >
+                                    {showCompleted ? <EyeOff size={20} /> : <Eye size={20} />}
+                                    {superGoalContext && <span style={{ fontSize: '0.85rem', fontWeight: 600, marginLeft: '6px' }}>{showCompleted ? 'Hide' : 'Show'}</span>}
+                                </button>
                             </div>
+                        </div>
+                    ) : (
+                        // --- Desktop Layout (Original) ---
+                        <div style={{ display: 'flex', flexDirection: 'row', gap: '1rem', alignItems: 'stretch' }}>
+                            <form onSubmit={addTask} style={{ display: 'flex', gap: '1rem', flex: 1 }}>
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    backgroundColor: 'var(--card-bg)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '12px',
+                                    paddingRight: '0.5rem',
+                                    flex: 1,
+                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                                    transition: 'all 0.2s',
+                                    opacity: isAnyTaskActive(tasks) ? 0.5 : 1,
+                                }}>
+                                    <input
+                                        type="text"
+                                        value={newTask}
+                                        onChange={(e) => setNewTask(e.target.value)}
+                                        placeholder={isAnyTaskActive(tasks) ? "Finish active task first..." : "Add a new task..."}
+                                        disabled={isAnyTaskActive(tasks)}
+                                        style={{
+                                            flex: 1,
+                                            padding: '1rem 1.5rem',
+                                            backgroundColor: 'transparent',
+                                            border: 'none',
+                                            color: 'var(--text-primary)',
+                                            fontSize: '1.2rem',
+                                            outline: 'none',
+                                            fontFamily: 'inherit',
+                                            cursor: isAnyTaskActive(tasks) ? 'not-allowed' : 'text',
+                                            minWidth: 0,
+                                        }}
+                                    />
+                                    {!superGoalContext && (
+                                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                            <select
+                                                value={selectedSuperGoalId}
+                                                onChange={(e) => setSelectedSuperGoalId(e.target.value)}
+                                                disabled={isAnyTaskActive(tasks)}
+                                                style={{
+                                                    appearance: 'none',
+                                                    backgroundColor: 'rgba(0,0,0,0.05)',
+                                                    border: 'none',
+                                                    borderRadius: '6px',
+                                                    padding: '0.4rem 2rem 0.4rem 0.8rem',
+                                                    fontSize: '0.8rem',
+                                                    color: selectedSuperGoalId ? 'var(--text-primary)' : 'var(--text-secondary)',
+                                                    cursor: 'pointer',
+                                                    outline: 'none',
+                                                    maxWidth: '120px',
+                                                    fontWeight: 600,
+                                                    textOverflow: 'ellipsis'
+                                                }}
+                                            >
+                                                <option value="" disabled>Select Goal</option>
+                                                {superGoals?.map((sg: any) => (
+                                                    <option key={sg._id} value={sg._id}>{sg.text}</option>
+                                                ))}
+                                            </select>
+                                            <div style={{ position: 'absolute', right: '0.6rem', pointerEvents: 'none', opacity: 0.5 }}>
+                                                <ChevronDown size={14} />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={isAnyTaskActive(tasks)}
+                                    style={{
+                                        background: 'var(--accent-color)',
+                                        border: 'none',
+                                        borderRadius: '12px',
+                                        width: '64px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: 'white',
+                                        cursor: isAnyTaskActive(tasks) ? 'not-allowed' : 'pointer',
+                                        transition: 'all 0.2s',
+                                        opacity: isAnyTaskActive(tasks) ? 0.3 : 1,
+                                        flexShrink: 0,
+                                    }}
+                                    className="hover:opacity-90 active:scale-95"
+                                >
+                                    <Plus size={32} />
+                                </button>
+                            </form>
+
                             <button
-                                type="submit"
-                                disabled={isAnyTaskActive(tasks)}
+                                type="button"
+                                disabled={isAnyTaskActive(tasks) || !newTask.trim() || isGenerating}
+                                onClick={async () => {
+                                    const targetSGId = superGoalContext ? (superGoalContext as any)._id : selectedSuperGoalId;
+                                    if (!targetSGId) {
+                                        alert("Please select a Super Goal first.");
+                                        return;
+                                    }
+                                    try {
+                                        const newTaskId = await addTaskMutation({
+                                            text: newTask,
+                                            status: 'idle',
+                                            order: 9999,
+                                        });
+                                        const targetSG = superGoals?.find((sg: any) => sg._id === targetSGId);
+                                        if (targetSG && newTaskId) {
+                                            await updateSuperGoalMutation({
+                                                id: targetSG._id,
+                                                bigGoalIds: [...(targetSG.bigGoalIds || []), newTaskId]
+                                            });
+                                            deconstruct(newTask, targetSGId, newTaskId);
+                                            setNewTask('');
+                                        }
+                                    } catch (e) {
+                                        console.error("Failed to start AI deconstruction:", e);
+                                    }
+                                }}
+                                style={{
+                                    background: 'transparent',
+                                    border: '1px solid var(--accent-color)',
+                                    borderRadius: '12px',
+                                    width: '64px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: 'var(--accent-color)',
+                                    cursor: (isAnyTaskActive(tasks) || !newTask.trim() || isGenerating) ? 'not-allowed' : 'pointer',
+                                    transition: 'all 0.2s',
+                                    opacity: (isAnyTaskActive(tasks) || !newTask.trim() || isGenerating) ? 0.5 : 1,
+                                    flexShrink: 0,
+                                }}
+                                className="hover:bg-accent-transparent active:scale-95"
+                                title="Deconstruct with AI"
+                            >
+                                <Sparkles size={28} />
+                            </button>
+
+                            <button
+                                onClick={() => setShowCompleted(!showCompleted)}
                                 style={{
                                     background: 'var(--accent-color)',
                                     border: 'none',
-                                    borderRadius: isMobile ? '10px' : '12px',
-                                    width: isMobile ? '52px' : '64px',
-                                    height: isMobile ? '52px' : 'auto',
+                                    borderRadius: '12px',
+                                    width: '64px',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     color: 'white',
-                                    cursor: isAnyTaskActive(tasks) ? 'not-allowed' : 'pointer',
+                                    cursor: 'pointer',
                                     transition: 'all 0.2s',
-                                    opacity: isAnyTaskActive(tasks) ? 0.3 : 1,
                                     flexShrink: 0,
                                 }}
                                 className="hover:opacity-90 active:scale-95"
+                                title={showCompleted ? "Hide Completed Tasks" : "Show Completed Tasks"}
                             >
-                                <Plus size={isMobile ? 24 : 32} />
+                                {showCompleted ? <EyeOff size={28} /> : <Eye size={28} />}
                             </button>
-                        </form>
 
-                        {/* Toggle Completed Tasks Button */}
-                        <button
-                            onClick={() => setShowCompleted(!showCompleted)}
-                            style={{
-                                background: 'var(--accent-color)',
-                                border: 'none',
-                                borderRadius: isMobile ? '10px' : '12px',
-                                width: isMobile ? '52px' : '64px',
-                                height: 'auto',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: 'white',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                flexShrink: 0,
-                            }}
-                            className="hover:opacity-90 active:scale-95"
-                            title={showCompleted ? "Hide Completed Tasks" : "Show Completed Tasks"}
-                        >
-                            {showCompleted ? <EyeOff size={isMobile ? 24 : 28} /> : <Eye size={isMobile ? 24 : 28} />}
-                        </button>
-
-                        {/* TIME ALIVE counter - hidden on mobile */}
-                        {!isMobile && (() => {
-                            // Calculate total time alive today
-                            const today = new Date();
-                            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
-                            let totalAliveMs = 0;
-
-                            // Helper to recursively sum time from tasks
-                            const sumTaskTime = (taskList: Task[]) => {
-                                for (const t of taskList) {
-                                    // Add time from tasks completed today
-                                    if (t.status === 'completed' && t.completedAt === todayStr && t.totalTime) {
-                                        totalAliveMs += t.totalTime;
-                                    }
-                                    // Add time from active tasks (totalTime + current session)
-                                    if (t.status === 'active') {
-                                        totalAliveMs += t.totalTime || 0;
-                                        if (t.activeSince) {
-                                            totalAliveMs += now - t.activeSince;
+                            {/* TIME ALIVE counter for Desktop */}
+                            {(() => {
+                                const today = new Date();
+                                const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                                let totalAliveMs = 0;
+                                const sumTaskTime = (taskList: Task[]) => {
+                                    for (const t of taskList) {
+                                        if (t.status === 'completed' && t.completedAt === todayStr && t.totalTime) {
+                                            totalAliveMs += t.totalTime;
+                                        }
+                                        if (t.status === 'active') {
+                                            totalAliveMs += t.totalTime || 0;
+                                            if (t.activeSince) {
+                                                totalAliveMs += now - t.activeSince;
+                                            }
+                                        }
+                                        if (t.status === 'idle' && t.totalTime) {
+                                            totalAliveMs += t.totalTime;
+                                        }
+                                        if (t.subtasks && t.subtasks.length > 0) {
+                                            sumTaskTime(t.subtasks);
                                         }
                                     }
-                                    // Add time from idle tasks that have accumulated time today
-                                    // (tasks that were active earlier today but stopped without completing)
-                                    if (t.status === 'idle' && t.totalTime) {
-                                        totalAliveMs += t.totalTime;
-                                    }
-                                    // Recurse into subtasks
-                                    if (t.subtasks && t.subtasks.length > 0) {
-                                        sumTaskTime(t.subtasks);
-                                    }
-                                }
-                            };
-                            sumTaskTime(tasks);
-
-                            const totalMinutes = Math.floor(totalAliveMs / (1000 * 60));
-                            const aliveHours = Math.floor(totalMinutes / 60);
-                            const aliveMinutes = totalMinutes % 60;
-                            const aliveDisplay = `${aliveHours}hr ${aliveMinutes}m`;
-
-                            return (
-                                <div style={{
-                                    backgroundColor: 'var(--card-bg)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: '12px',
-                                    padding: '0 1.25rem',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    justifyContent: 'center',
-                                    alignItems: 'center',
-                                    minWidth: '100px',
-                                    flexShrink: 0,
-                                }}>
-                                    <span style={{
-                                        fontSize: '0.65rem',
-                                        fontWeight: 700,
-                                        color: 'var(--text-secondary)',
-                                        letterSpacing: '0.05em',
-                                        textTransform: 'uppercase',
-                                        marginBottom: '2px'
+                                };
+                                sumTaskTime(tasks);
+                                const totalMinutes = Math.floor(totalAliveMs / (1000 * 60));
+                                const aliveHours = Math.floor(totalMinutes / 60);
+                                const aliveMinutes = totalMinutes % 60;
+                                const aliveDisplay = `${aliveHours}hr ${aliveMinutes}m`;
+                                return (
+                                    <div style={{
+                                        backgroundColor: 'var(--card-bg)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: '12px',
+                                        padding: '0 1.25rem',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        justifyContent: 'center',
+                                        alignItems: 'center',
+                                        minWidth: '100px',
+                                        flexShrink: 0,
                                     }}>
-                                        TIME ALIVE
-                                    </span>
-                                    <span style={{
-                                        fontSize: '1.5rem',
-                                        fontWeight: 700,
-                                        color: 'var(--accent-color)',
-                                        lineHeight: 1,
-                                        fontVariantNumeric: 'tabular-nums'
-                                    }}>
-                                        {aliveDisplay}
-                                    </span>
-                                </div>
-                            );
-                        })()}
-                    </div>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '2px' }}>
+                                            TIME ALIVE
+                                        </span>
+                                        <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--accent-color)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+                                            {aliveDisplay}
+                                        </span>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    )}
 
                     {/* Layout Split: Timeline+Active | Separator | Completed */}
                     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto', paddingBottom: '2rem' }}>

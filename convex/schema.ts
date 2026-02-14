@@ -33,4 +33,16 @@ export default defineSchema({
         text: v.string(),
         updatedAt: v.number(),
     }).index("by_user", ["userId"]),
+
+    chainTemplates: defineTable({
+        userId: v.string(),
+        name: v.string(),
+        tasks: v.array(
+            v.object({
+                name: v.string(),
+                duration: v.number(),
+            })
+        ),
+        createdAt: v.number(),
+    }).index("by_user", ["userId"]),
 });

@@ -24,6 +24,8 @@ import { ShareModal } from './components/ShareModal';
 import { Mascot } from './components/Mascot';
 
 import { SuperGoalView } from './components/views/SuperGoalView';
+import { AIProvider } from './context/AIContext';
+import { RightHub } from './components/RightHub';
 
 // Utils / Hooks
 
@@ -33,6 +35,7 @@ import { useLicense } from './hooks/useLicense';
 import { ActivationModal } from './components/ActivationModal';
 import { ActiveTaskPill } from './components/ActiveTaskPill';
 import { PageTitle } from './components/PageTitle';
+import { BottomNav } from './components/BottomNav';
 
 function App() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -80,6 +83,9 @@ function App() {
   // Zen Mode state
   const [isZenMode, setIsZenMode] = useState(false);
   const [zenFlash, setZenFlash] = useState(false);
+
+  // Mobile Hub State
+  const [isHubOpen, setIsHubOpen] = useState(false);
 
   // Share modal states
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -466,364 +472,381 @@ function App() {
   }
 
   return (
-    <div style={{ display: 'flex', width: '100%', minHeight: '100vh', overflow: 'hidden', position: 'relative' }}>
+    <AIProvider>
+      <div style={{ display: 'flex', width: '100%', minHeight: '100vh', overflow: 'hidden', position: 'relative' }}>
 
-      {/* Activation Wall */}
-      <ActivationModal
-        isOpen={!isActivated}
-        onActivate={activateLicense}
-        isLoading={isActivating}
-        error={licenseError}
-      />
+        {/* Activation Wall */}
+        <ActivationModal
+          isOpen={!isActivated}
+          onActivate={activateLicense}
+          isLoading={isActivating}
+          error={licenseError}
+        />
 
-      {/* Zen Mode Flash Effect */}
-      <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          backgroundColor: '#BAE6FD',
-          opacity: zenFlash ? 0.3 : 0,
-          pointerEvents: 'none',
-          transition: 'opacity 0.5s ease-out',
-          zIndex: 9999,
-        }}
-      />
-      <Analytics />
+        {/* Zen Mode Flash Effect */}
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: '#BAE6FD',
+            opacity: zenFlash ? 0.3 : 0,
+            pointerEvents: 'none',
+            transition: 'opacity 0.5s ease-out',
+            zIndex: 9999,
+          }}
+        />
+        <Analytics />
 
 
-      {/* Main Content Wrapper */}
-      {isActivated && (
-        <>
-          <ActiveTaskPill />
-          <div style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            minWidth: 0,
-            position: 'relative',
-            transition: 'all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1)', // Smooth resize
-          }}>
+        {/* Main Content Wrapper */}
+        {isActivated && (
+          <>
+            <ActiveTaskPill />
             <div style={{
-              maxWidth: '1200px',
-              margin: '0 auto',
-              width: '100%',
-              padding: '2rem',
+              flex: 1,
               display: 'flex',
               flexDirection: 'column',
-              height: '100vh',
-              boxSizing: 'border-box', // Ensure padding doesn't overflow width
-              gap: '2rem',
-              flex: 1,
+              minWidth: 0,
+              position: 'relative',
+              transition: 'all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1)', // Smooth resize
             }}>
+              <div style={{
+                maxWidth: '1200px',
+                margin: '0 auto',
+                width: '100%',
+                padding: '2rem',
+                paddingBottom: isMobile ? '100px' : '2rem', // Add padding for BottomNav
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100vh',
+                overflowY: 'auto', // Enable vertical scrolling
+                overflowX: 'hidden',
+                boxSizing: 'border-box', // Ensure padding doesn't overflow width
+                gap: '2rem',
+                flex: 1,
+              }}>
 
 
-              {/* Hidden Share Card for Capture */}
-              <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-                <div
-                  ref={shareRef}
-                  style={{
-                    width: '1080px',
-                    height: '1080px',
-                    position: 'relative',
-                    backgroundColor: '#1a1a1a',
-                    color: 'white',
-                    fontFamily: "'Space Grotesk', sans-serif",
-                    overflow: 'hidden',
-                  }}
-                >
-                  {/* Background Image with Overlay */}
-                  <img
-                    src={shareBgImg}
-                    alt="Background"
+                {/* Hidden Share Card for Capture */}
+                <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+                  <div
+                    ref={shareRef}
                     style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
+                      width: '1080px',
+                      height: '1080px',
+                      position: 'relative',
+                      backgroundColor: '#1a1a1a',
+                      color: 'white',
+                      fontFamily: "'Space Grotesk', sans-serif",
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {/* Background Image with Overlay */}
+                    <img
+                      src={shareBgImg}
+                      alt="Background"
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        opacity: 0.6,
+                      }}
+                    />
+
+                    {/* Content Container */}
+                    <div style={{
+                      position: 'relative',
+                      zIndex: 10,
                       width: '100%',
                       height: '100%',
-                      objectFit: 'cover',
-                      opacity: 0.6,
-                    }}
-                  />
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: '3rem',
+                    }}>
+                      {/* Logo */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                        <Sparkles size={80} color="#60A5FA" fill="#60A5FA" />
+                        <span style={{ fontSize: '5rem', fontWeight: 'bold', letterSpacing: '-0.05em' }}>chrct</span>
+                      </div>
 
-                  {/* Content Container */}
+                      {/* Main Stats */}
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '16rem', fontWeight: 700, lineHeight: 1, color: '#60A5FA', textShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+                          {stats.characters.toLocaleString()}
+                        </div>
+                        <div style={{ fontSize: '3rem', fontWeight: 500, color: '#e5e7eb', letterSpacing: '0.1em', marginTop: '1.5rem' }}>
+                          CHARACTERS
+                        </div>
+                      </div>
+
+                      {/* Sub Stats Grid */}
+                      <div style={{ display: 'flex', gap: '6rem', marginTop: '3rem' }}>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: '4rem', fontWeight: 700 }}>{stats.words}</div>
+                          <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>WORDS</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: '4rem', fontWeight: 700 }}>{stats.sentences}</div>
+                          <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>SENTENCES</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: '4rem', fontWeight: 700 }}>{stats.paragraphs}</div>
+                          <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>PARAGRAPHS</div>
+                        </div>
+                      </div>
+
+                      {/* Footer URL */}
+                      <div style={{ position: 'absolute', bottom: '3rem', fontSize: '2rem', opacity: 1, letterSpacing: '0.05em' }}>
+                        chrct.com
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Background Layer */}
+                <div className={`wallpaper-container ${theme === 'wallpaper' ? 'visible' : ''}`}>
                   <div style={{
-                    position: 'relative',
-                    zIndex: 10,
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
                     width: '100%',
                     height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    gap: '3rem',
-                  }}>
-                    {/* Logo */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                      <Sparkles size={80} color="#60A5FA" fill="#60A5FA" />
-                      <span style={{ fontSize: '5rem', fontWeight: 'bold', letterSpacing: '-0.05em' }}>chrct</span>
-                    </div>
-
-                    {/* Main Stats */}
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '16rem', fontWeight: 700, lineHeight: 1, color: '#60A5FA', textShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
-                        {stats.characters.toLocaleString()}
-                      </div>
-                      <div style={{ fontSize: '3rem', fontWeight: 500, color: '#e5e7eb', letterSpacing: '0.1em', marginTop: '1.5rem' }}>
-                        CHARACTERS
-                      </div>
-                    </div>
-
-                    {/* Sub Stats Grid */}
-                    <div style={{ display: 'flex', gap: '6rem', marginTop: '3rem' }}>
-                      <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '4rem', fontWeight: 700 }}>{stats.words}</div>
-                        <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>WORDS</div>
-                      </div>
-                      <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '4rem', fontWeight: 700 }}>{stats.sentences}</div>
-                        <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>SENTENCES</div>
-                      </div>
-                      <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '4rem', fontWeight: 700 }}>{stats.paragraphs}</div>
-                        <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>PARAGRAPHS</div>
-                      </div>
-                    </div>
-
-                    {/* Footer URL */}
-                    <div style={{ position: 'absolute', bottom: '3rem', fontSize: '2rem', opacity: 1, letterSpacing: '0.05em' }}>
-                      chrct.com
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Background Layer */}
-              <div className={`wallpaper-container ${theme === 'wallpaper' ? 'visible' : ''}`}>
-                <div style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  backgroundImage: `url(${bgImg})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  filter: 'blur(8px)', // Default blur
-                  transform: 'scale(1.1)', // Prevent blur edges
-                }} />
-                <div style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  backgroundColor: 'rgba(0, 0, 0, 0.6)', // Dark overlay
-                }} />
-              </div>
-
-              <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', width: '100%', transition: 'all 0.5s ease' }} className="animate-in">
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem',
-                    fontWeight: 'bold',
-                    fontSize: '1.25rem',
-                    letterSpacing: '-0.025em',
-                    cursor: 'default',
-                  }}
-                  className={isZenMode ? 'zen-hidden' : ''}
-                  onMouseEnter={() => setIsHeaderHovered(true)}
-                  onMouseLeave={() => setIsHeaderHovered(false)}
-                >
-                  <Sparkles size={24} color="var(--accent-color)" fill="var(--accent-color)" />
-                  <div className="logo-text">
-                    {/* Part 1: ch */}
-                    <span className="logo-static" style={{ color: isHeaderHovered ? '#60A5FA' : 'var(--text-primary)' }}>ch</span>
-
-                    {/* Part 2: i / a */}
-                    <AnimatedPart isVisible={isHeaderHovered} text={headerPrefix === 'chiruno' ? 'i' : 'a'} color="#60A5FA" />
-
-                    {/* Part 3: r */}
-                    <span className="logo-static" style={{ color: isHeaderHovered ? '#60A5FA' : 'var(--text-primary)' }}>r</span>
-
-                    {/* Part 4: uno / acter */}
-                    <AnimatedPart isVisible={isHeaderHovered} text={headerPrefix === 'chiruno' ? 'uno' : 'acter'} color="#60A5FA" />
-
-                    {/* Part 5: c (start of count) */}
-                    <span className="logo-static" style={{ color: 'var(--text-primary)' }}>c</span>
-
-                    {/* Part 6: oun */}
-                    <AnimatedPart isVisible={isHeaderHovered} text="oun" color="var(--text-primary)" />
-
-                    {/* Part 7: t */}
-                    <span className="logo-static" style={{ color: 'var(--text-primary)' }}>t</span>
-                  </div>
+                    backgroundImage: `url(${bgImg})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    filter: 'blur(8px)', // Default blur
+                    transform: 'scale(1.1)', // Prevent blur edges
+                  }} />
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: 'rgba(0, 0, 0, 0.6)', // Dark overlay
+                  }} />
                 </div>
 
-                <nav className={`header-actions ${isZenMode ? 'zen-hidden' : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 500 }}>
-
-                  {/* Streak Badge - Compact on Mobile */}
+                <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', width: '100%', transition: 'all 0.5s ease' }} className="animate-in">
                   <div
-                    className={`streak-badge ${isCompletedToday ? 'completed' : ''}`}
-                    title={isCompletedToday ? "Streak kept! Come back tomorrow." : "Complete 1 task to keep the streak!"}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '0.4rem',
-                      // padding handled by CSS class for responsiveness
+                      gap: '0.75rem',
+                      fontWeight: 'bold',
+                      fontSize: '1.25rem',
+                      letterSpacing: '-0.025em',
+                      cursor: 'default',
                     }}
+                    className={isZenMode ? 'zen-hidden' : ''}
+                    onMouseEnter={() => setIsHeaderHovered(true)}
+                    onMouseLeave={() => setIsHeaderHovered(false)}
                   >
-                    <Snowflake size={20} className="streak-icon" />
-                    <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1, alignItems: 'flex-start' }}>
-                      <span>{weeklyHours}<span className="mobile-hidden"> hrs</span></span>
-                      <span className="streak-details" style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 400 }}>{dailyProgress} tasks</span>
+                    <Sparkles size={24} color="var(--accent-color)" fill="var(--accent-color)" />
+                    <div className="logo-text">
+                      {/* Part 1: ch */}
+                      <span className="logo-static" style={{ color: isHeaderHovered ? '#60A5FA' : 'var(--text-primary)' }}>ch</span>
+
+                      {/* Part 2: i / a */}
+                      <AnimatedPart isVisible={isHeaderHovered} text={headerPrefix === 'chiruno' ? 'i' : 'a'} color="#60A5FA" />
+
+                      {/* Part 3: r */}
+                      <span className="logo-static" style={{ color: isHeaderHovered ? '#60A5FA' : 'var(--text-primary)' }}>r</span>
+
+                      {/* Part 4: uno / acter */}
+                      <AnimatedPart isVisible={isHeaderHovered} text={headerPrefix === 'chiruno' ? 'uno' : 'acter'} color="#60A5FA" />
+
+                      {/* Part 5: c (start of count) */}
+                      <span className="logo-static" style={{ color: 'var(--text-primary)' }}>c</span>
+
+                      {/* Part 6: oun */}
+                      <AnimatedPart isVisible={isHeaderHovered} text="oun" color="var(--text-primary)" />
+
+                      {/* Part 7: t */}
+                      <span className="logo-static" style={{ color: 'var(--text-primary)' }}>t</span>
                     </div>
                   </div>
 
+                  <nav className={`header-actions ${isZenMode ? 'zen-hidden' : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 500 }}>
+
+                    {/* Streak Badge - Compact on Mobile */}
+                    <div
+                      className={`streak-badge ${isCompletedToday ? 'completed' : ''}`}
+                      title={isCompletedToday ? "Streak kept! Come back tomorrow." : "Complete 1 task to keep the streak!"}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        // padding handled by CSS class for responsiveness
+                      }}
+                    >
+                      <Snowflake size={20} className="streak-icon" />
+                      <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1, alignItems: 'flex-start' }}>
+                        <span>{weeklyHours}<span className="mobile-hidden"> hrs</span></span>
+                        <span className="streak-details" style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 400 }}>{dailyProgress} tasks</span>
+                      </div>
+                    </div>
 
 
 
 
-                  <button
-                    onClick={() => setIsCreditOpen(true)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'inherit',
-                      font: 'inherit',
-                      cursor: 'pointer',
-                      padding: 0,
-                    }}
-                    className="nav-link mobile-hidden"
-                  >
-                    Credit
-                  </button>
 
-                  {/* ⑨ Mode Button */}
-                  <button
-                    onClick={toggleZenMode}
-                    className={`zen-button ${isZenMode ? 'active' : ''}`}
-                    title={isZenMode ? "Exit Zen Mode" : "Enter ⑨ Mode (Zen)"}
-                  >
-                    9
-                  </button>
+                    <button
+                      onClick={() => setIsCreditOpen(true)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'inherit',
+                        font: 'inherit',
+                        cursor: 'pointer',
+                        padding: 0,
+                      }}
+                      className="nav-link mobile-hidden"
+                    >
+                      Credit
+                    </button>
 
-                  <div style={{ marginLeft: '0.25rem' }}>
-                    <SignedIn>
-                      <UserButton />
-                    </SignedIn>
-                    <SignedOut>
-                      <SignInButton mode="modal">
-                        <button className="sign-in-btn">
-                          Sign In
-                        </button>
-                      </SignInButton>
-                    </SignedOut>
+                    {/* ⑨ Mode Button */}
+                    <button
+                      onClick={toggleZenMode}
+                      className={`zen-button ${isZenMode ? 'active' : ''}`}
+                      title={isZenMode ? "Exit Zen Mode" : "Enter ⑨ Mode (Zen)"}
+                    >
+                      9
+                    </button>
+
+                    <div style={{ marginLeft: '0.25rem' }}>
+                      <SignedIn>
+                        <UserButton />
+                      </SignedIn>
+                      <SignedOut>
+                        <SignInButton mode="modal">
+                          <button className="sign-in-btn">
+                            Sign In
+                          </button>
+                        </SignInButton>
+                      </SignedOut>
+                    </div>
+                  </nav>
+                </header>
+
+                <div style={{
+                  borderBottom: '1px solid var(--border-color)',
+                  width: '100%',
+                  marginBottom: '1rem',
+                  opacity: 0.5,
+                }} className={`animate-in delay-100 ${isZenMode ? 'zen-hidden' : ''}`}></div>
+
+                <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem', flex: 1, width: '100%', position: 'relative' }}>
+                  {activeTab === 'super_goal' ? (
+                    <SuperGoalView theme={theme} onNavigateToLaunchpad={() => setActiveTab('launchpad')} />
+                  ) : activeTab === 'launchpad' ? (
+                    <LaunchpadWrapper theme={theme} />
+                  ) : (
+                    <CharacterCountView
+                      text={text}
+                      handleTextChange={handleTextChange}
+                      stats={stats}
+                      isZenMode={isZenMode}
+                      saveStatus={saveStatus}
+                    />
+                  )}
+                </main>
+
+                <footer style={{
+                  display: activeTab === 'writing' ? 'flex' : 'none',
+                  justifyContent: 'space-between',
+                  alignItems: isMobile ? 'center' : 'flex-end',
+                  padding: '2rem 0',
+                  width: '100%',
+                  flexDirection: isMobile ? 'column' : 'row',
+                  gap: isMobile ? '1rem' : '0'
+                }} className={`animate-in delay-400 ${isZenMode ? 'zen-hidden' : ''}`}>
+                  {/* Left: Export Buttons */}
+                  <div style={{ display: 'flex', gap: '1rem', justifyContent: isMobile ? 'center' : 'flex-start', width: isMobile ? '100%' : 'auto' }}>
+                    <button onClick={handleExportDocx} title="Export to Word (.docx)" className="icon-btn">
+                      <FileText size={20} />
+                    </button>
+                    <button onClick={handlePrintPdf} title="Print / Save as PDF" className="icon-btn">
+                      <Printer size={20} />
+                    </button>
+                    <button onClick={handleShare} title="Share Progress" className="icon-btn">
+                      <Share2 size={20} />
+                    </button>
                   </div>
-                </nav>
-              </header>
 
-              <div style={{
-                borderBottom: '1px solid var(--border-color)',
-                width: '100%',
-                marginBottom: '1rem',
-                opacity: 0.5,
-              }} className={`animate-in delay-100 ${isZenMode ? 'zen-hidden' : ''}`}></div>
+                  {/* Right: Timestamp & Actions */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'center' : 'flex-end', gap: '0.5rem', width: isMobile ? '100%' : 'auto' }}>
+                    {lastSaved && (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.8 }}>
+                        Saved {lastSaved.getMonth() + 1}/{lastSaved.getDate()} {lastSaved.getHours().toString().padStart(2, '0')}:{lastSaved.getMinutes().toString().padStart(2, '0')}
+                      </span>
+                    )}
+                    <div style={{ display: 'flex', gap: '1.5rem' }}>
+                      <button onClick={handleCopy} title="Copy" className="icon-btn">
+                        <Copy size={20} />
+                      </button>
+                      <button onClick={handleClear} title="Clear" className="icon-btn">
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
+                  </div>
+                </footer>
 
-              <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem', flex: 1, width: '100%', position: 'relative' }}>
-                {activeTab === 'super_goal' ? (
-                  <SuperGoalView theme={theme} onNavigateToLaunchpad={() => setActiveTab('launchpad')} />
-                ) : activeTab === 'launchpad' ? (
-                  <LaunchpadWrapper theme={theme} />
-                ) : (
-                  <CharacterCountView
-                    text={text}
-                    handleTextChange={handleTextChange}
-                    stats={stats}
-                    isZenMode={isZenMode}
-                    saveStatus={saveStatus}
+                {!isMobile && (
+                  <Mascot popups={popups} isAboutOpen={isAboutOpen} onToggleAbout={() => setIsAboutOpen(!isAboutOpen)} />
+                )}
+
+                <ShareModal
+                  isOpen={isShareModalOpen}
+                  onClose={() => setIsShareModalOpen(false)}
+                  imageBlob={shareImageBlob}
+                  onDownload={handleDownloadImage}
+                  onShare={handleNativeShare}
+                  canShare={canShare}
+                />
+
+                <CreditModal isOpen={isCreditOpen} onClose={() => setIsCreditOpen(false)} />
+
+                <HubSidebar
+                  theme={theme}
+                  setTheme={setTheme}
+                  isMusicPlaying={isPlaying}
+                  toggleMusic={toggleMusic}
+                  musicVolume={musicVolume}
+                  onVolumeChange={handleVolumeChange}
+                  activeTab={activeTab}
+                  onTabChange={setActiveTab}
+                  mobileOpen={isHubOpen}
+                  onMobileClose={() => setIsHubOpen(false)}
+                />
+
+                <RightHub theme={theme} isMobile={isMobile} />
+
+                {isMobile && (
+                  <BottomNav
+                    activeTab={activeTab}
+                    onTabChange={setActiveTab}
+                    onOpenHub={() => setIsHubOpen(true)}
+                    theme={theme}
                   />
                 )}
-              </main>
-
-              <footer style={{
-                display: activeTab === 'writing' ? 'flex' : 'none',
-                justifyContent: 'space-between',
-                alignItems: isMobile ? 'center' : 'flex-end',
-                padding: '2rem 0',
-                width: '100%',
-                flexDirection: isMobile ? 'column' : 'row',
-                gap: isMobile ? '1rem' : '0'
-              }} className={`animate-in delay-400 ${isZenMode ? 'zen-hidden' : ''}`}>
-                {/* Left: Export Buttons */}
-                <div style={{ display: 'flex', gap: '1rem', justifyContent: isMobile ? 'center' : 'flex-start', width: isMobile ? '100%' : 'auto' }}>
-                  <button onClick={handleExportDocx} title="Export to Word (.docx)" className="icon-btn">
-                    <FileText size={20} />
-                  </button>
-                  <button onClick={handlePrintPdf} title="Print / Save as PDF" className="icon-btn">
-                    <Printer size={20} />
-                  </button>
-                  <button onClick={handleShare} title="Share Progress" className="icon-btn">
-                    <Share2 size={20} />
-                  </button>
-                </div>
-
-                {/* Right: Timestamp & Actions */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'center' : 'flex-end', gap: '0.5rem', width: isMobile ? '100%' : 'auto' }}>
-                  {lastSaved && (
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.8 }}>
-                      Saved {lastSaved.getMonth() + 1}/{lastSaved.getDate()} {lastSaved.getHours().toString().padStart(2, '0')}:{lastSaved.getMinutes().toString().padStart(2, '0')}
-                    </span>
-                  )}
-                  <div style={{ display: 'flex', gap: '1.5rem' }}>
-                    <button onClick={handleCopy} title="Copy" className="icon-btn">
-                      <Copy size={20} />
-                    </button>
-                    <button onClick={handleClear} title="Clear" className="icon-btn">
-                      <Trash2 size={20} />
-                    </button>
-                  </div>
-                </div>
-              </footer>
-
-              {!isMobile && (
-                <Mascot popups={popups} isAboutOpen={isAboutOpen} onToggleAbout={() => setIsAboutOpen(!isAboutOpen)} />
-              )}
-
-              <ShareModal
-                isOpen={isShareModalOpen}
-                onClose={() => setIsShareModalOpen(false)}
-                imageBlob={shareImageBlob}
-                onDownload={handleDownloadImage}
-                onShare={handleNativeShare}
-                canShare={canShare}
-              />
-
-              <CreditModal isOpen={isCreditOpen} onClose={() => setIsCreditOpen(false)} />
-
-              <HubSidebar
-                theme={theme}
-                setTheme={setTheme}
-                isMusicPlaying={isPlaying}
-                toggleMusic={toggleMusic}
-                musicVolume={musicVolume}
-                onVolumeChange={handleVolumeChange}
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-
-              />
 
 
+              </div>
             </div>
-          </div>
-        </>
-      )}
-    </div>
+          </>
+        )}
+      </div>
+    </AIProvider>
   );
 }
 

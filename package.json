@@ -20,6 +20,7 @@
     "dotenv": "^17.2.3",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.23.26",
+    "groq-sdk": "^0.37.0",
     "html2canvas": "^1.4.1",
     "lucide-react": "^0.555.0",
     "react": "^19.2.0",
