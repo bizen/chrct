@@ -5,7 +5,7 @@ import Groq from "groq-sdk";
 
 export const deconstructTask = action({
     args: { taskName: v.string() },
-    handler: async (ctx, args) => {
+    handler: async (_ctx, args) => {
         const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
         const completion = await groq.chat.completions.create({

@@ -1,7 +1,6 @@
-import { createContext, useContext, useState, ReactNode, useRef } from 'react';
+import { createContext, useContext, useState, type ReactNode, useRef } from 'react';
 import { useAction, useMutation, useQuery, useConvexAuth } from 'convex/react';
 import { api } from '../../convex/_generated/api';
-import type { Id } from '../../convex/_generated/dataModel';
 
 interface AIContextType {
     isOpen: boolean;
