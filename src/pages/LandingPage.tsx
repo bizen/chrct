@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, ArrowRight, Zap, Layout, Shield, FileText, Star, ChevronDown } from 'lucide-react';
+import { Sparkles, ArrowRight, Zap, FileText, Star, ChevronDown, Rocket, Shield, Target } from 'lucide-react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { PricingCards } from '../components/PricingCards';
 import cirnoImg from '../assets/cirno.png';
@@ -55,6 +55,13 @@ export const LandingPage = () => {
         }}>
             {/* Dynamic Background */}
             <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }}>
+                {/* Grid Overlay */}
+                <div style={{
+                    position: 'absolute', inset: 0,
+                    backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px)',
+                    backgroundSize: '40px 40px',
+                    zIndex: -1
+                }} />
                 <div style={{
                     position: 'absolute', top: '-20%', left: '-10%', width: '60vw', height: '60vw',
                     background: 'radial-gradient(circle, rgba(96, 165, 250, 0.15) 0%, transparent 70%)',
@@ -120,7 +127,7 @@ export const LandingPage = () => {
                         whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                         style={{
                             background: '#60A5FA', color: 'white', padding: '0.7rem 1.5rem',
-                            borderRadius: '12px', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
+                            borderRadius: '0px', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
                             boxShadow: '0 0 20px rgba(167, 139, 250, 0.4), 0 0 10px rgba(251, 191, 36, 0.2)',
                             border: '1px solid rgba(167, 139, 250, 0.3)',
                             fontFamily: "'Space Grotesk', sans-serif"
@@ -143,11 +150,11 @@ export const LandingPage = () => {
                     initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
                     style={{
                         padding: '0.5rem 1rem', background: 'rgba(96, 165, 250, 0.1)', color: '#60A5FA',
-                        borderRadius: '99px', fontSize: '0.85rem', fontWeight: 600, marginBottom: '2rem',
+                        borderRadius: '0px', fontSize: '0.85rem', fontWeight: 600, marginBottom: '2rem',
                         border: '1px solid rgba(96, 165, 250, 0.2)', display: 'inline-flex', alignItems: 'center', gap: '0.5rem'
                     }}
                 >
-                    <Star size={14} fill="#60A5FA" /> The Ultimate Workflow
+                    <Star size={14} fill="#60A5FA" /> SYSTEM STATUS: ONLINE
                 </motion.div>
 
                 <motion.h1
@@ -169,8 +176,8 @@ export const LandingPage = () => {
                         fontSize: '1.25rem', color: '#94A3B8', maxWidth: '650px', lineHeight: 1.6, marginBottom: '3rem'
                     }}
                 >
-                    Your words and your tasks, united in one beautiful, distraction-free space.
-                    Draft your next masterpiece while tracking every goal effortlessly.
+                    Construct your daily protocol. The <b>Launchpad</b> aligns your objectives.
+                    <b>Snipe Focus</b> ensures absolute execution. No distractions.
                 </motion.p>
 
                 <motion.div
@@ -181,7 +188,7 @@ export const LandingPage = () => {
                         whileHover={{ scale: 1.05, boxShadow: '0 0 40px rgba(167, 139, 250, 0.6), 0 0 20px rgba(251, 191, 36, 0.4)' }} whileTap={{ scale: 0.95 }}
                         style={{
                             display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#60A5FA', color: 'white',
-                            padding: '1rem 2.5rem', borderRadius: '16px', fontSize: '1.1rem', fontWeight: 600,
+                            padding: '1rem 2.5rem', borderRadius: '0px', fontSize: '1.1rem', fontWeight: 600,
                             cursor: 'pointer', boxShadow: '0 0 30px rgba(167, 139, 250, 0.4), 0 0 15px rgba(251, 191, 36, 0.2)',
                             border: '1px solid rgba(167, 139, 250, 0.3)',
                             fontFamily: "'Space Grotesk', sans-serif"
@@ -203,32 +210,21 @@ export const LandingPage = () => {
                 <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '2rem' }}>
                         <BentoCard
-                            icon={<Zap size={32} color="#FBBF24" />}
-                            title="Seamless Flow"
-                            desc="Switch instantly between writing mode and task lists. Drag and drop tasks to prioritize your day without leaving your creative zone."
+                            icon={<Rocket size={32} color="#FBBF24" />}
+                            title="LAUNCHPAD"
+                            desc="Centralized command. Consolidate specific objectives into a unified operational view."
                             delay={0}
                         />
                         <BentoCard
-                            icon={<Layout size={32} color="#A78BFA" />}
-                            title={
-                                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <span style={{
-                                        fontFamily: "'Quantico', sans-serif",
-                                        width: '28px', height: '28px',
-                                        borderRadius: '50%', border: '2px solid #60A5FA',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        fontSize: '1.1rem', fontWeight: 700, color: '#60A5FA'
-                                    }}>9</span>
-                                    Mode
-                                </span>
-                            }
-                            desc="Eliminate all noise. One click hides your tasks and UI, leaving just you and your cursor. Perfect for deep work sessions."
+                            icon={<Target size={32} color="#A78BFA" />}
+                            title="SNIPE FOCUS"
+                            desc="Target acquisition. Isolate active tasks with precision while background noise is eliminated."
                             delay={0.1}
                         />
                         <BentoCard
                             icon={<Shield size={32} color="#34D399" />}
-                            title="Secure Sync"
-                            desc="Your drafts and to-dos are encrypted and synced instantly via Convex. Start on mobile, finish on desktop."
+                            title="SOLID STATE"
+                            desc="Data persistence. End-to-end encrypted synchronization via Convex with offline-first architecture."
                             delay={0.2}
                         />
                     </div>
@@ -257,7 +253,7 @@ export const LandingPage = () => {
                         style={{
                             background: 'rgba(255,255,255,0.03)',
                             border: '1px solid rgba(255,255,255,0.05)',
-                            borderRadius: '24px',
+                            borderRadius: '0px',
                             padding: '2.5rem',
                             display: 'flex',
                             flexDirection: 'column',
@@ -307,7 +303,7 @@ export const LandingPage = () => {
                         style={{
                             background: 'rgba(255,255,255,0.03)',
                             border: '1px solid rgba(255,255,255,0.05)',
-                            borderRadius: '24px',
+                            borderRadius: '0px',
                             padding: '2.5rem',
                             display: 'flex',
                             flexDirection: 'column',
@@ -336,8 +332,8 @@ export const LandingPage = () => {
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '2rem' }}>
                             <div style={{ textAlign: 'center' }}>
-                                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#A78BFA' }}>365</div>
-                                <div style={{ fontSize: '0.8rem', color: '#94A3B8' }}>DAY STREAK</div>
+                                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#A78BFA' }}>42.5</div>
+                                <div style={{ fontSize: '0.8rem', color: '#94A3B8' }}>WEEKLY HOURS</div>
                             </div>
                             <div style={{ textAlign: 'center' }}>
                                 <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#A78BFA' }}>1,248</div>
@@ -411,7 +407,7 @@ export const LandingPage = () => {
                         <p style={{ color: '#64748B', marginBottom: '1rem' }}>Already have a license key?</p>
                         <button onClick={handleOpenApp} style={{
                             background: 'transparent', border: '1px solid #334155', color: '#94A3B8',
-                            padding: '0.75rem 2rem', borderRadius: '8px', fontWeight: 600, cursor: 'pointer',
+                            padding: '0.75rem 2rem', borderRadius: '0px', fontWeight: 600, cursor: 'pointer',
                             transition: 'all 0.2s'
                         }} className='hover:border-blue-400 hover:text-blue-400'>
                             Activate License
@@ -467,7 +463,7 @@ const BentoCard = ({ icon, title, desc, delay }: any) => {
                 padding: '2.5rem',
                 backgroundColor: 'rgba(255,255,255,0.03)',
                 border: '1px solid rgba(255,255,255,0.05)',
-                borderRadius: '24px',
+                borderRadius: '0px',
                 textAlign: 'left',
                 display: 'flex',
                 flexDirection: 'column',
@@ -477,7 +473,7 @@ const BentoCard = ({ icon, title, desc, delay }: any) => {
             }}
         >
             <div style={{
-                width: '60px', height: '60px', borderRadius: '16px',
+                width: '60px', height: '60px', borderRadius: '0px',
                 background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 marginBottom: '0.5rem'
             }}>
@@ -499,7 +495,7 @@ const StatsBar = ({ height, color, delay }: { height: number, color: string, del
             style={{
                 width: '100%',
                 background: `linear-gradient(to top, ${color}20, ${color})`,
-                borderRadius: '8px 8px 0 0',
+                borderRadius: '0px',
                 position: 'relative'
             }}
         >
@@ -622,7 +618,7 @@ const AppPreview = () => {
                 width: '100%', maxWidth: '900px', height: '500px',
                 background: '#0F1117',
                 border: '1px solid rgba(167, 139, 250, 0.3)',
-                borderRadius: '12px',
+                borderRadius: '0px',
                 boxShadow: '0 0 60px rgba(167, 139, 250, 0.15), 0 0 30px rgba(251, 191, 36, 0.1), 0 20px 50px rgba(0,0,0,0.5)',
                 margin: '0 auto',
                 overflow: 'hidden',
@@ -643,6 +639,9 @@ const AppPreview = () => {
                     <h3 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '1rem', color: '#E2E8F0' }}>
                         {renderText()}<span className="animate-pulse">|</span>
                     </h3>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                        <div style={{ padding: '0.2rem 0.8rem', borderRadius: '0px', background: 'rgba(96, 165, 250, 0.1)', border: '1px solid rgba(96, 165, 250, 0.3)', color: '#60A5FA', fontSize: '0.75rem', letterSpacing: '0.05em' }}>LAUNCHPAD ACTIVE</div>
+                    </div>
                     <div style={{ height: '15px', width: '100%', background: 'rgba(255,255,255,0.03)', borderRadius: '4px', marginBottom: '0.8rem' }} />
                     <div style={{ height: '15px', width: '90%', background: 'rgba(255,255,255,0.03)', borderRadius: '4px', marginBottom: '0.8rem' }} />
                     <div style={{ height: '15px', width: '95%', background: 'rgba(255,255,255,0.03)', borderRadius: '4px', marginBottom: '0.8rem' }} />
@@ -712,11 +711,11 @@ const FAQItem = ({ question, answer }: { question: string, answer: string }) => 
 const TestimonialCard = ({ name, role, text }: any) => (
     <div style={{
         width: '300px', padding: '1.5rem', background: 'rgba(255,255,255,0.03)',
-        borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)'
+        borderRadius: '0px', border: '1px solid rgba(255,255,255,0.05)'
     }}>
         <p style={{ fontSize: '0.95rem', lineHeight: 1.6, color: '#CBD5E1', marginBottom: '1.5rem' }}>"{text}"</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, #60A5FA, #A78BFA)' }} />
+            <div style={{ width: '40px', height: '40px', borderRadius: '0px', background: 'linear-gradient(135deg, #60A5FA, #A78BFA)' }} />
             <div>
                 <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{name}</div>
                 <div style={{ fontSize: '0.8rem', color: '#94A3B8' }}>{role}</div>

@@ -17,8 +17,8 @@ export function PricingCards() {
             {/* Pro Plan */}
             <div style={{
                 background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '24px',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '0px',
                 padding: '2rem',
                 display: 'flex',
                 flexDirection: 'column',
@@ -43,7 +43,7 @@ export function PricingCards() {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
                         <span style={{ fontSize: '3rem', fontWeight: 'bold' }}>$9</span>
-                        <span style={{ color: 'var(--text-secondary)' }}>/ year</span>
+                        <span style={{ color: '#94A3B8' }}>/ YEAR</span>
                     </div>
                 </div>
 
@@ -75,7 +75,7 @@ export function PricingCards() {
                         color: '#60A5FA',
                         border: '1px solid rgba(96, 165, 250, 0.2)',
                         padding: '1rem',
-                        borderRadius: '12px',
+                        borderRadius: '0px',
                         textAlign: 'center',
                         fontWeight: '600',
                         textDecoration: 'none',
@@ -85,15 +85,15 @@ export function PricingCards() {
                     }}
                     className="hover-bg"
                 >
-                    Start 5-Day Trial
+                    START 5-DAY TRIAL
                 </a>
             </div>
 
             {/* Owner Plan */}
             <div style={{
-                background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02))',
-                border: '1px solid rgba(255, 215, 0, 0.3)',
-                borderRadius: '24px',
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(253, 185, 49, 0.3)',
+                borderRadius: '0px',
                 padding: '2rem',
                 display: 'flex',
                 flexDirection: 'column',
@@ -109,7 +109,7 @@ export function PricingCards() {
                     background: 'linear-gradient(90deg, #FFD700, #FDB931)',
                     color: 'black',
                     padding: '0.25rem 0.75rem',
-                    borderRadius: '99px',
+                    borderRadius: '0px',
                     fontSize: '0.75rem',
                     fontWeight: 'bold'
                 }}>
@@ -123,7 +123,7 @@ export function PricingCards() {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
                         <span style={{ fontSize: '3rem', fontWeight: 'bold' }}>$39</span>
-                        <span style={{ color: 'var(--text-secondary)' }}>/ lifetime</span>
+                        <span style={{ color: '#94A3B8' }}>/ LIFETIME</span>
                     </div>
                 </div>
 
@@ -155,7 +155,7 @@ export function PricingCards() {
                         color: 'black',
                         border: 'none',
                         padding: '1rem',
-                        borderRadius: '12px',
+                        borderRadius: '0px',
                         textAlign: 'center',
                         fontWeight: 'bold',
                         textDecoration: 'none',
@@ -167,7 +167,7 @@ export function PricingCards() {
                     onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
                     onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                 >
-                    Get Lifetime Access
+                    GET LIFETIME ACCESS
                 </a>
             </div>
         </div>
