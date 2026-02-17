@@ -120,14 +120,11 @@ export const LandingPage = () => {
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
-                    <button onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
-                        style={{ background: 'none', border: 'none', color: '#94A3B8', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif" }}>
-                        Pricing
-                    </button>
+
                     <motion.button onClick={handleOpenApp}
                         whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                         style={{
-                            background: '#60A5FA', color: 'white', padding: '0.7rem 1.5rem',
+                            background: '#3B82F6', color: 'white', padding: '0.7rem 1.5rem',
                             borderRadius: '0px', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
                             boxShadow: '0 0 20px rgba(167, 139, 250, 0.4), 0 0 10px rgba(251, 191, 36, 0.2)',
                             border: '1px solid rgba(167, 139, 250, 0.3)',
@@ -170,7 +167,7 @@ export const LandingPage = () => {
                         fontFamily: "'Playfair Display', serif"
                     }}
                 >
-                    Life, Reimagined.
+                    Life, <span style={{ fontStyle: 'italic' }}>Accelerated.</span>
                 </motion.h1>
 
                 <motion.p
@@ -180,7 +177,7 @@ export const LandingPage = () => {
                     }}
                 >
                     Construct your daily protocol. The <b>Launchpad</b> aligns your objectives.
-                    <b>Snipe Focus</b> ensures absolute execution. No distractions.
+                    Chiruno ensures absolute execution. No distractions.
                 </motion.p>
 
                 <motion.div
@@ -190,7 +187,7 @@ export const LandingPage = () => {
                     <motion.button onClick={handleOpenApp}
                         whileHover={{ scale: 1.05, boxShadow: '0 0 40px rgba(167, 139, 250, 0.6), 0 0 20px rgba(251, 191, 36, 0.4)' }} whileTap={{ scale: 0.95 }}
                         style={{
-                            display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#60A5FA', color: 'white',
+                            display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#3B82F6', color: 'white',
                             padding: '1rem 2.5rem', borderRadius: '0px', fontSize: '1.1rem', fontWeight: 600,
                             cursor: 'pointer', boxShadow: '0 0 30px rgba(167, 139, 250, 0.4), 0 0 15px rgba(251, 191, 36, 0.2)',
                             border: '1px solid rgba(167, 139, 250, 0.3)',
