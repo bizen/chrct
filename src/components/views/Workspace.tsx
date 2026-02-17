@@ -671,6 +671,8 @@ export function Workspace() {
             onVolumeChange={handleVolumeChange}
             activeTab={activeTab}
             onTabChange={setActiveTab}
+            isCalendarOpen={false} // Workspace doesn't support calendar yet, or use state
+            toggleCalendar={() => { }}
           />
 
 

@@ -3,6 +3,7 @@ import { Sparkles, ArrowRight, Zap, FileText, Star, ChevronDown, Rocket, Shield,
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { PricingCards } from '../components/PricingCards';
 import cirnoImg from '../assets/cirno.png';
+import { HeroBackground } from '../components/HeroBackground';
 
 export const LandingPage = () => {
     const [isScrolled, setIsScrolled] = useState(false);
@@ -146,6 +147,7 @@ export const LandingPage = () => {
                     y: heroY, opacity: heroOpacity
                 }}
             >
+                <HeroBackground />
                 <motion.div
                     initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
                     style={{
@@ -154,7 +156,7 @@ export const LandingPage = () => {
                         border: '1px solid rgba(96, 165, 250, 0.2)', display: 'inline-flex', alignItems: 'center', gap: '0.5rem'
                     }}
                 >
-                    <Star size={14} fill="#60A5FA" /> SYSTEM STATUS: ONLINE
+                    <Star size={14} fill="#60A5FA" /> price increases soon
                 </motion.div>
 
                 <motion.h1
@@ -164,7 +166,8 @@ export const LandingPage = () => {
                         marginBottom: '1.5rem', letterSpacing: '-0.04em',
                         background: 'linear-gradient(135deg, #FFFFFF 0%, #94A3B8 100%)',
                         WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-                        textShadow: '0 20px 40px rgba(0,0,0,0.2)'
+                        textShadow: '0 20px 40px rgba(0,0,0,0.2)',
+                        fontFamily: "'Playfair Display', serif"
                     }}
                 >
                     Life, Reimagined.
@@ -393,7 +396,7 @@ export const LandingPage = () => {
                         viewport={{ once: true }}
                         style={{ marginBottom: '5rem' }}
                     >
-                        <h2 style={{ fontSize: 'clamp(2.5rem, 5vw, 4rem)', fontWeight: 800, marginBottom: '1.5rem', letterSpacing: '-0.02em' }}>
+                        <h2 style={{ fontSize: 'clamp(2.5rem, 5vw, 4rem)', fontWeight: 800, marginBottom: '1.5rem', letterSpacing: '-0.02em', fontFamily: "'Playfair Display', serif" }}>
                             Unlock your potential.
                         </h2>
                         <p style={{ fontSize: '1.25rem', color: '#94A3B8', maxWidth: '600px', margin: '0 auto' }}>

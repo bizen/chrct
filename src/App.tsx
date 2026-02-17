@@ -110,6 +110,16 @@ function App() {
     localStorage.setItem('chrct_active_tab', activeTab);
   }, [activeTab]);
 
+  // Calendar State
+  const [isCalendarOpen, setIsCalendarOpen] = useState(() => {
+    const saved = localStorage.getItem('chrct_calendar_open');
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('chrct_calendar_open', JSON.stringify(isCalendarOpen));
+  }, [isCalendarOpen]);
+
   useEffect(() => {
     audioRef.current = new Audio(chirunoMp3);
     audioRef.current.loop = true;
@@ -827,9 +837,11 @@ function App() {
                   onTabChange={setActiveTab}
                   mobileOpen={isHubOpen}
                   onMobileClose={() => setIsHubOpen(false)}
+                  isCalendarOpen={isCalendarOpen}
+                  toggleCalendar={() => setIsCalendarOpen(!isCalendarOpen)}
                 />
 
-                <RightHub theme={theme} isMobile={isMobile} />
+                <RightHub theme={theme} isMobile={isMobile} isCalendarOpen={isCalendarOpen} />
 
                 {isMobile && (
                   <BottomNav

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LayoutGrid, BarChart, Target, Rocket, ChevronLeft, ChevronRight, Pen, Maximize2 } from 'lucide-react';
+import { LayoutGrid, BarChart, Target, Rocket, ChevronLeft, ChevronRight, Pen, Maximize2, Calendar } from 'lucide-react';
 import { useUser } from "@clerk/clerk-react";
 import { ClockWidget } from './hub/ClockWidget';
 import { ThemeWidget } from './hub/ThemeWidget';
@@ -23,6 +23,10 @@ interface HubSidebarProps {
     // Mobile Support
     mobileOpen?: boolean;
     onMobileClose?: () => void;
+
+    // Calendar Support
+    isCalendarOpen: boolean;
+    toggleCalendar: () => void;
 }
 
 export function HubSidebar({
@@ -35,7 +39,9 @@ export function HubSidebar({
     activeTab,
     onTabChange,
     mobileOpen,
-    onMobileClose
+    onMobileClose,
+    isCalendarOpen,
+    toggleCalendar
 }: HubSidebarProps) {
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
     const { isSignedIn } = useUser();
@@ -154,6 +160,28 @@ export function HubSidebar({
                                 View Task Stats
                             </button>
                         )}
+
+                        {/* Calendar Widget Toggle - Mobile */}
+                        <button
+                            onClick={toggleCalendar}
+                            style={{
+                                width: '100%',
+                                padding: '1rem',
+                                borderRadius: '12px',
+                                border: 'none',
+                                backgroundColor: isCalendarOpen ? (theme === 'light' ? 'rgba(37, 99, 235, 0.1)' : 'rgba(96, 165, 250, 0.1)') : (theme === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'),
+                                color: isCalendarOpen ? (theme === 'light' ? '#2563eb' : '#60A5FA') : (theme === 'light' ? '#1f2937' : 'white'),
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.5rem',
+                                fontWeight: 600,
+                            }}
+                        >
+                            <Calendar size={20} />
+                            {isCalendarOpen ? "Hide Calendar" : "Show Calendar"}
+                        </button>
 
                         <div style={{ position: 'relative' }}>
                             <TaskChainWidget theme={theme} />
@@ -324,6 +352,31 @@ export function HubSidebar({
                                 View Task Stats
                             </button>
                         )}
+
+                        {/* Calendar Toggle Button - Desktop */}
+                        <button
+                            onClick={toggleCalendar}
+                            style={{
+                                width: '100%',
+                                padding: '0.75rem',
+                                borderRadius: '12px',
+                                border: 'none',
+                                backgroundColor: isCalendarOpen ? (theme === 'light' ? 'rgba(37, 99, 235, 0.1)' : 'rgba(96, 165, 250, 0.1)') : (theme === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'),
+                                color: isCalendarOpen ? (theme === 'light' ? '#2563eb' : '#60A5FA') : 'inherit',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.5rem',
+                                fontWeight: 600,
+                                transition: 'all 0.2s',
+                            }}
+                            className="hover-bg"
+                            title={isCalendarOpen ? "Hide Google Calendar" : "Show Google Calendar"}
+                        >
+                            <Calendar size={18} />
+                            {isCalendarOpen ? "Calendar ON" : "Calendar OFF"}
+                        </button>
 
                         {/* Separator */}
                         <div style={{

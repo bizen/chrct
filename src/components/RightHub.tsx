@@ -1,16 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAI } from '../context/AIContext';
 import { useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
-import { X, Plus, Sparkles, Loader2, Check } from 'lucide-react';
+import { X, Plus, Sparkles, Loader2, Check, Calendar, Settings } from 'lucide-react';
 
 interface RightHubProps {
     theme: 'dark' | 'light' | 'wallpaper';
     isMobile?: boolean;
+    isCalendarOpen: boolean;
 }
 
-export function RightHub({ theme, isMobile = false }: RightHubProps) {
+export function RightHub({ theme, isMobile = false, isCalendarOpen }: RightHubProps) {
     const {
         isOpen,
         setIsOpen,
@@ -20,12 +21,24 @@ export function RightHub({ theme, isMobile = false }: RightHubProps) {
         clearProposals,
         targetSuperGoalId,
         ensureParentTask
-    } = useAI() as any; // Cast for custom context props not in type yet or fix type
+    } = useAI() as any;
 
     // Local state to track added tasks (by index)
     const [addedIndices, setAddedIndices] = useState<Set<number>>(new Set());
     const [addingIndices, setAddingIndices] = useState<Set<number>>(new Set());
     const [lastProposed, setLastProposed] = useState<string[]>([]);
+
+    // Calendar State
+    const [calendarUrl, setCalendarUrl] = useState(() => localStorage.getItem('chrct_calendar_url') || '');
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [isTimeInvertEnabled, setIsTimeInvertEnabled] = useState(() => {
+        const saved = localStorage.getItem('chrct_calendar_invert');
+        return saved ? JSON.parse(saved) : true;
+    });
+
+    useEffect(() => {
+        localStorage.setItem('chrct_calendar_invert', JSON.stringify(isTimeInvertEnabled));
+    }, [isTimeInvertEnabled]);
 
     // Reset state when proposed tasks change (new deconstruction)
     if (proposedSubtasks !== lastProposed) {
@@ -43,7 +56,7 @@ export function RightHub({ theme, isMobile = false }: RightHubProps) {
     // Convex mutations
     const addTaskMutation = useMutation(api.tasks.create);
 
-    if (!isOpen) return null;
+    if (!isOpen && !isCalendarOpen) return null;
 
     const glassStyle = {
         backgroundColor: theme === 'light' ? 'rgba(255, 255, 255, 0.8)' : 'rgba(29, 35, 51, 0.6)',
@@ -103,7 +116,18 @@ export function RightHub({ theme, isMobile = false }: RightHubProps) {
         clearProposals();
     };
 
+    const saveCalendarUrl = (url: string) => {
+        localStorage.setItem('chrct_calendar_url', url);
+        setCalendarUrl(url);
+        setIsSettingsOpen(false);
+    };
+
+    // Decide what to render
+    const isAIMode = isOpen; // AI takes precedence if open
+
     if (isMobile) {
+        if (!isAIMode && !isCalendarOpen) return null;
+
         return (
             <div
                 style={{
@@ -119,7 +143,7 @@ export function RightHub({ theme, isMobile = false }: RightHubProps) {
                     backgroundColor: 'rgba(0,0,0,0.5)',
                     backdropFilter: 'blur(4px)',
                 }}
-                onClick={() => setIsOpen(false)}
+                onClick={() => isAIMode ? setIsOpen(false) : null /* Calendar persistent on mobile? or closeable */}
             >
                 <div
                     className="no-scrollbar"
@@ -141,39 +165,55 @@ export function RightHub({ theme, isMobile = false }: RightHubProps) {
                     }}
                     onClick={e => e.stopPropagation()}
                 >
+
                     {/* Header */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <h2 style={{ fontSize: '1.2rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <Sparkles size={20} color="var(--accent-color)" />
-                            AI Deconstruct
+                            {isAIMode ? <Sparkles size={20} color="var(--accent-color)" /> : <Calendar size={20} color="var(--accent-color)" />}
+                            {isAIMode ? 'AI Deconstruct' : 'Calendar'}
                         </h2>
                         <button
-                            onClick={() => setIsOpen(false)}
+                            onClick={() => isAIMode ? setIsOpen(false) : null} // Calendar close on mobile logic needed if we want to allow closing by X
                             style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'inherit', opacity: 0.7, padding: '0.5rem' }}
                         >
-                            <X size={24} />
+                            {isAIMode && <X size={24} />}
                         </button>
                     </div>
 
-                    {/* Target Task */}
-                    <div style={{
-                        padding: '1rem',
-                        backgroundColor: theme === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)',
-                        borderRadius: '12px',
-                        fontSize: '0.95rem',
-                        fontWeight: 500,
-                        lineHeight: 1.4
-                    }}>
-                        <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            Deconstructing:
-                        </div>
-                        {targetTaskName}
-                    </div>
+                    {isAIMode ? (
+                        <>
+                            {/* Target Task */}
+                            <div style={{
+                                padding: '1rem',
+                                backgroundColor: theme === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)',
+                                borderRadius: '12px',
+                                fontSize: '0.95rem',
+                                fontWeight: 500,
+                                lineHeight: 1.4
+                            }}>
+                                <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Deconstructing:
+                                </div>
+                                {targetTaskName}
+                            </div>
 
-                    {/* Content */}
-                    {renderContent({
-                        isGenerating, proposedSubtasks, theme, handleAddAll, addedIndices, addingIndices, handleAddTask
-                    })}
+                            {/* Content */}
+                            {renderContent({
+                                isGenerating, proposedSubtasks, theme, handleAddAll, addedIndices, addingIndices, handleAddTask
+                            })}
+                        </>
+                    ) : (
+                        <div style={{ height: '500px' }}>
+                            {/* Calendar Mobile View - Simplified */}
+                            {calendarUrl ? (
+                                <iframe src={calendarUrl} style={{ border: 0, width: '100%', height: '100%', borderRadius: '12px' }} frameBorder="0" scrolling="no"></iframe>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.7 }}>
+                                    <p>Please set your Calendar Embed URL on Desktop first.</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -186,10 +226,11 @@ export function RightHub({ theme, isMobile = false }: RightHubProps) {
                 top: '6rem',
                 right: '1rem',
                 bottom: '2rem',
-                width: '300px',
+                width: isAIMode ? '300px' : '360px', // Wider for Calendar
                 zIndex: 40,
                 display: 'flex',
                 pointerEvents: 'none', // Wrapper is ghost
+                transition: 'width 0.3s ease'
             }}
         >
             <div
@@ -206,42 +247,190 @@ export function RightHub({ theme, isMobile = false }: RightHubProps) {
                     flexDirection: 'column',
                     padding: '1.5rem',
                     gap: '1rem',
-                    overflowY: 'auto'
+                    overflowY: 'hidden' // Important for iframe
                 }}
             >
                 {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                     <h2 style={{ fontSize: '1.2rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Sparkles size={20} color="var(--accent-color)" />
-                        AI Deconstruct
+                        {isAIMode ? <Sparkles size={20} color="var(--accent-color)" /> : <Calendar size={20} color="var(--accent-color)" />}
+                        {isAIMode ? 'AI Deconstruct' : 'Google Calendar'}
                     </h2>
-                    <button
-                        onClick={() => setIsOpen(false)}
-                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'inherit', opacity: 0.7 }}
-                    >
-                        <X size={20} />
-                    </button>
-                </div>
-
-                {/* Target Task */}
-                <div style={{
-                    padding: '1rem',
-                    backgroundColor: theme === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)',
-                    borderRadius: '12px',
-                    fontSize: '0.95rem',
-                    fontWeight: 500,
-                    lineHeight: 1.4
-                }}>
-                    <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        Deconstructing:
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        {!isAIMode && (
+                            <button
+                                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                                title="Calendar Settings"
+                                style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'inherit', opacity: 0.7 }}
+                            >
+                                <Settings size={18} />
+                            </button>
+                        )}
+                        {isAIMode && (
+                            <button
+                                onClick={() => setIsOpen(false)}
+                                style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'inherit', opacity: 0.7 }}
+                            >
+                                <X size={20} />
+                            </button>
+                        )}
                     </div>
-                    {targetTaskName}
                 </div>
 
-                {/* Content */}
-                {renderContent({
-                    isGenerating, proposedSubtasks, theme, handleAddAll, addedIndices, addingIndices, handleAddTask
-                })}
+                {isAIMode ? (
+                    <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem', height: '100%' }}>
+                        {/* Target Task */}
+                        <div style={{
+                            padding: '1rem',
+                            backgroundColor: theme === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)',
+                            borderRadius: '12px',
+                            fontSize: '0.95rem',
+                            fontWeight: 500,
+                            lineHeight: 1.4,
+                            flexShrink: 0
+                        }}>
+                            <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Deconstructing:
+                            </div>
+                            {targetTaskName}
+                        </div>
+
+                        {/* Content */}
+                        {renderContent({
+                            isGenerating, proposedSubtasks, theme, handleAddAll, addedIndices, addingIndices, handleAddTask
+                        })}
+                    </div>
+                ) : (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+                        {/* Settings Overlay */}
+                        {isSettingsOpen && (
+                            <div style={{
+                                position: 'absolute',
+                                top: 0, left: 0, right: 0,
+                                padding: '1rem',
+                                backgroundColor: theme === 'light' ? '#fff' : '#1e293b',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '12px',
+                                zIndex: 10,
+                                boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '1rem'
+                            }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Calendar Embed URL</label>
+                                    <input
+                                        type="text"
+                                        placeholder="https://calendar.google.com/calendar/embed?src=..."
+                                        defaultValue={calendarUrl}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                saveCalendarUrl(e.currentTarget.value);
+                                            }
+                                        }}
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.5rem',
+                                            borderRadius: '8px',
+                                            border: '1px solid var(--border-color)',
+                                            background: 'var(--input-bg)',
+                                            color: 'var(--text-primary)',
+                                            fontSize: '0.8rem'
+                                        }}
+                                    />
+                                    <div style={{ fontSize: '0.7rem', opacity: 0.7 }}>
+                                        Go to Google Calendar Settings &gt; Integrate calendar &gt; Embed code. Copy the info in "src" attribute.
+                                    </div>
+                                    <button
+                                        onClick={(e) => {
+                                            const input = e.currentTarget.parentElement?.querySelector('input') as HTMLInputElement;
+                                            if (input) saveCalendarUrl(input.value);
+                                        }}
+                                        style={{
+                                            padding: '0.5rem',
+                                            borderRadius: '8px',
+                                            background: 'var(--accent-color)',
+                                            color: 'white',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            fontWeight: 600,
+                                            fontSize: '0.8rem',
+                                            marginTop: '0.5rem'
+                                        }}
+                                    >
+                                        Save URL
+                                    </button>
+                                </div>
+
+                                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+                                    {/* Theme Optimization Toggle */}
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={isTimeInvertEnabled}
+                                            onChange={(e) => setIsTimeInvertEnabled(e.target.checked)}
+                                            style={{ accentColor: 'var(--accent-color)' }}
+                                        />
+                                        <span>Optimize for Dark Theme</span>
+                                    </label>
+                                    <p style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: '0.25rem', marginLeft: '1.5rem' }}>
+                                        Inverts colors to blend with chrct's dark aesthetic.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {calendarUrl ? (
+                            <iframe
+                                src={calendarUrl}
+                                style={{
+                                    border: 0,
+                                    width: '100%',
+                                    height: '100%',
+                                    borderRadius: '12px',
+                                    filter: (theme !== 'light' && isTimeInvertEnabled) ? 'invert(0.93) hue-rotate(180deg) contrast(0.9)' : 'none',
+                                    transition: 'filter 0.5s ease',
+                                    opacity: (theme !== 'light' && isTimeInvertEnabled) ? 0.8 : 1
+                                }}
+                                frameBorder="0"
+                                scrolling="no"
+                            ></iframe>
+                        ) : (
+                            <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '1rem',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                height: '100%',
+                                opacity: 0.7,
+                                textAlign: 'center',
+                                padding: '1rem'
+                            }}>
+                                <Calendar size={48} strokeWidth={1.5} />
+                                <div>
+                                    <p style={{ fontWeight: 600 }}>No Calendar Set</p>
+                                    <p style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>Click the settings icon to add your Google Calendar Embed URL.</p>
+                                </div>
+                                <button
+                                    onClick={() => setIsSettingsOpen(true)}
+                                    style={{
+                                        padding: '0.5rem 1rem',
+                                        borderRadius: '8px',
+                                        background: 'var(--accent-color)',
+                                        color: 'white',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        fontSize: '0.9rem',
+                                        fontWeight: 600
+                                    }}
+                                >
+                                    Setup Calendar
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );
