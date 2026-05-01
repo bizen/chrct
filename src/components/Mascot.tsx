@@ -1,41 +1,27 @@
 import { X } from 'lucide-react';
+import { useState } from 'react';
 import cirnoImg from '../assets/cirno.png';
 
-interface Popup {
-    id: number;
-    text: string;
-    xOffset: number;
-}
+export function Mascot() {
+    const [open, setOpen] = useState(false);
 
-interface MascotProps {
-    popups: Popup[];
-    isAboutOpen: boolean;
-    onToggleAbout: () => void;
-}
-
-export function Mascot({ popups, isAboutOpen, onToggleAbout }: MascotProps) {
     return (
-        <div className="mascot-container animate-in delay-500">
-            {popups.map(popup => (
-                <div
-                    key={popup.id}
-                    className="popup-text"
-                    style={{ transform: `translateX(calc(-50% + ${popup.xOffset}px))` }}
-                >
-                    {popup.text}
-                </div>
-            ))}
-            {isAboutOpen && (
+        <div className="mascot-container">
+            {open && (
                 <div className="speech-bubble">
                     <button
-                        onClick={onToggleAbout}
+                        type="button"
+                        onClick={() => setOpen(false)}
                         className="close-bubble"
+                        aria-label="閉じる"
                     >
                         <X size={16} />
                     </button>
-                    <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>チルノカウントについて</h3>
-                    <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                        あたいが文字数をかぞえるよ！<br />Let me count the words for you!
+                    <h3 className="speech-bubble-title">chrct について</h3>
+                    <p className="speech-bubble-body">
+                        あたいが文字数をかぞえるよ！
+                        <br />
+                        Let me count the words for you!
                     </p>
                 </div>
             )}
@@ -43,7 +29,7 @@ export function Mascot({ popups, isAboutOpen, onToggleAbout }: MascotProps) {
                 src={cirnoImg}
                 alt="Cirno"
                 className="mascot"
-                onClick={onToggleAbout}
+                onClick={() => setOpen((v) => !v)}
             />
         </div>
     );

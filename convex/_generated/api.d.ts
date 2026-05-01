@@ -8,11 +8,6 @@
  * @module
  */
 
-import type * as ai from "../ai.js";
-import type * as chainTemplates from "../chainTemplates.js";
-import type * as license from "../license.js";
-import type * as superGoals from "../superGoals.js";
-import type * as sync from "../sync.js";
 import type * as tasks from "../tasks.js";
 
 import type {
@@ -22,11 +17,6 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  ai: typeof ai;
-  chainTemplates: typeof chainTemplates;
-  license: typeof license;
-  superGoals: typeof superGoals;
-  sync: typeof sync;
   tasks: typeof tasks;
 }>;
 

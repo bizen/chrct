@@ -1,73 +1,65 @@
-# React + TypeScript + Vite
+# chrct
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+シンプルな2機能アプリ。
 
-Currently, two official plugins are available:
+- **`/count`** — 文字数カウント（ローカル保存、認証不要）
+- **`/tasks`** — タスクリスト（Clerk 認証 + Convex で同期）
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## スタック
 
-## React Compiler
+- React 19 + Vite + TypeScript
+- React Router v7
+- Clerk（認証）
+- Convex（バックエンド・リアルタイム同期）
+- lucide-react（アイコン）
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## セットアップ
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+`.env.local` に以下を設定:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```
+VITE_CONVEX_URL=https://<your-project>.convex.cloud
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxx
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+> 環境変数が無くても文字数カウントは動作します。タスクページのみ無効化されます。
+
+## 開発
+
+```bash
+# Convex を起動（_generated を生成）
+npm run convex
+
+# 別ターミナルで Vite
+npm run dev
+```
+
+## ビルド
+
+```bash
+npm run build
+npm run preview
+```
+
+## ファイル構成
+
+```
+src/
+  main.tsx                    ルートエントリ
+  App.tsx                     シェル + トップナビ + ルーティング
+  index.css                   スタイル
+  pages/
+    CountPage.tsx             文字数カウント
+    TasksPage.tsx             タスクリスト
+  components/
+    ConvexClientProvider.tsx  Clerk + Convex プロバイダ
+    ErrorBoundary.tsx         エラー境界
+convex/
+  schema.ts                   tasks テーブルのみ
+  tasks.ts                    list / create / toggle / updateText / remove / clearCompleted
+  auth.config.ts              Clerk 連携
 ```
