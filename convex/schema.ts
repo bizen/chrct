@@ -24,4 +24,11 @@ export default defineSchema({
         /** 旧ブロック参照（テーブル削除後もDBに残る場合の互換） */
         blockId: v.optional(v.string()),
     }).index("by_user", ["userId"]),
+
+    /** character count のストック（ログイン時に Convex へ） */
+    countStocks: defineTable({
+        userId: v.string(),
+        text: v.string(),
+        savedAt: v.number(),
+    }).index("by_user", ["userId"]),
 });

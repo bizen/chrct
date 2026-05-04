@@ -247,6 +247,85 @@ body {
   border-color: var(--accent-color);
 }
 
+.count-stocks {
+  margin-top: 1.25rem;
+}
+
+.count-stocks-loading {
+  margin: 0 0 0.5rem;
+}
+
+.count-stock-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+}
+
+.count-stock-actions {
+  margin-top: 0.65rem;
+}
+
+.count-stock-save-btn {
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  justify-content: center;
+  padding: 0.55rem 1rem;
+}
+
+.count-stock-item {
+  padding: 0.7rem 0.85rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+}
+
+.count-stock-item:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.count-stock-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.count-stock-restore {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  padding: 0.12rem 0.25rem;
+  margin: -0.12rem -0.25rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.count-stock-preview {
+  font-size: 0.9rem;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.count-stock-meta {
+  font-size: 0.75rem;
+}
+
 /* ---------- Tasks Page ---------- */
 
 .task-input-row {
