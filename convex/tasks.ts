@@ -33,6 +33,24 @@ export const updateText = mutation({
     },
 });
 
+export const updateSummary = mutation({
+    args: { id: v.id("tasks"), summary: v.string() },
+    handler: async (ctx, { id, summary }) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) throw new Error("Unauthorized");
+
+        const task = await ctx.db.get(id);
+        if (!task || task.userId !== identity.subject) {
+            throw new Error("Not found");
+        }
+
+        const trimmed = summary.trim();
+        await ctx.db.patch(id, {
+            ...(trimmed ? { summary: trimmed } : { summary: undefined }),
+        });
+    },
+});
+
 export const setKind = mutation({
     args: {
         id: v.id("tasks"),

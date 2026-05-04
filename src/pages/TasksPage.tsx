@@ -18,7 +18,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useMutation, useQuery } from 'convex/react';
 import { Check, GripVertical, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../convex/_generated/api';
 import type { Doc, Id } from '../../convex/_generated/dataModel';
 import { isCloudConfigured } from '../lib/cloudConfig';
@@ -375,9 +375,62 @@ function SortableTaskItem({
   const removeEntry = useMutation(api.taskList.removeEntry);
   const setKind = useMutation(api.tasks.setKind);
   const updateText = useMutation(api.tasks.updateText);
+  const updateSummary = useMutation(api.tasks.updateSummary);
 
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(task.text);
+  const [summaryDraft, setSummaryDraft] = useState(task.summary ?? '');
+  const [summaryFieldVisible, setSummaryFieldVisible] = useState(false);
+  const summaryTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const editStackRef = useRef<HTMLDivElement | null>(null);
+  const editModeRef = useRef(false);
+
+  const startEdit = () => {
+    editModeRef.current = true;
+    setDraft(task.text);
+    setSummaryDraft(task.summary ?? '');
+    setSummaryFieldVisible(!!task.summary?.trim());
+    setIsEditing(true);
+  };
+
+  const cancelEdit = useCallback(() => {
+    editModeRef.current = false;
+    setDraft(task.text);
+    setSummaryDraft(task.summary ?? '');
+    setSummaryFieldVisible(false);
+    setIsEditing(false);
+  }, [task.summary, task.text]);
+
+  const commitAll = useCallback(() => {
+    if (!editModeRef.current) return;
+    editModeRef.current = false;
+    setSummaryFieldVisible(false);
+
+    const titleTrim = draft.trim();
+    if (titleTrim && titleTrim !== task.text) {
+      updateText({ id: task._id as Id<'tasks'>, text: titleTrim });
+    }
+    const prevSum = (task.summary ?? '').trim();
+    const nextSum = summaryDraft.trim();
+    if (nextSum !== prevSum) {
+      void updateSummary({ id: task._id as Id<'tasks'>, summary: summaryDraft });
+    }
+    setIsEditing(false);
+  }, [draft, summaryDraft, task._id, task.summary, task.text, updateText, updateSummary]);
+
+  const handleEditStackBlur = useCallback(() => {
+    requestAnimationFrame(() => {
+      if (!editModeRef.current) return;
+      const stack = editStackRef.current;
+      if (stack?.contains(document.activeElement)) return;
+      commitAll();
+    });
+  }, [commitAll]);
+
+  useEffect(() => {
+    if (!isEditing || !summaryFieldVisible) return;
+    summaryTextareaRef.current?.focus();
+  }, [isEditing, summaryFieldVisible]);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: entryId, disabled: isEditing });
@@ -388,23 +441,12 @@ function SortableTaskItem({
     zIndex: isDragging ? 10 : undefined,
   };
 
-  const startEdit = () => {
-    setDraft(task.text);
-    setIsEditing(true);
+  const openTextOrSummary = () => {
+    startEdit();
   };
 
-  const commitEdit = () => {
-    const trimmed = draft.trim();
-    if (trimmed && trimmed !== task.text) {
-      updateText({ id: task._id as Id<'tasks'>, text: trimmed });
-    }
-    setIsEditing(false);
-  };
-
-  const cancelEdit = () => {
-    setDraft(task.text);
-    setIsEditing(false);
-  };
+  const isTitleOnlyRow =
+    (!isEditing && !task.summary?.trim()) || (isEditing && !summaryFieldVisible);
 
   return (
     <li
@@ -412,72 +454,112 @@ function SortableTaskItem({
       style={style}
       className={`task-item ${task.done ? 'done' : ''} ${isDragging ? 'dragging' : ''}`}
     >
-      <button
-        type="button"
-        className={`check-btn ${task.done ? 'checked' : ''}`}
-        onClick={() => toggle({ id: task._id as Id<'tasks'> })}
-        aria-label={task.done ? '未完了に戻す' : '完了'}
-      >
-        {task.done && <Check size={14} strokeWidth={3} />}
-      </button>
-      <QuestIcon
-        kind={task.kind}
-        onCycle={() =>
-          setKind({ id: task._id as Id<'tasks'>, kind: nextKind(task.kind) })
-        }
-      />
-      {isEditing ? (
-        <input
-          autoFocus
-          className="task-text-input"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onFocus={(e) => e.currentTarget.select()}
-          onBlur={commitEdit}
-          onKeyDown={(e) => {
-            if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              commitEdit();
-            } else if (e.key === 'Escape') {
-              e.preventDefault();
-              cancelEdit();
-            }
-          }}
-        />
-      ) : (
-        <span
-          className="task-text"
-          onClick={startEdit}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              startEdit();
-            }
-          }}
+        <div className={`task-item-top${isTitleOnlyRow ? ' task-item-top--vcenter' : ''}`}>
+        <button
+          type="button"
+          className={`check-btn ${task.done ? 'checked' : ''}`}
+          onClick={() => toggle({ id: task._id as Id<'tasks'> })}
+          aria-label={task.done ? '未完了に戻す' : '完了'}
         >
-          {task.text}
-        </span>
-      )}
-      <button
-        type="button"
-        className="icon-btn drag-handle"
-        aria-label="並び替え"
-        {...attributes}
-        {...listeners}
-      >
-        <GripVertical size={16} />
-      </button>
-      <button
-        type="button"
-        className="icon-btn"
-        onClick={() => removeEntry({ entryId })}
-        aria-label="削除"
-      >
-        <Trash2 size={16} />
-      </button>
+          {task.done && <Check size={14} strokeWidth={3} />}
+        </button>
+        <QuestIcon
+          kind={task.kind}
+          onCycle={() =>
+            setKind({ id: task._id as Id<'tasks'>, kind: nextKind(task.kind) })
+          }
+        />
+        <div className="task-item-text-stack">
+          {isEditing ? (
+            <div ref={editStackRef} className="task-edit-stack">
+              <input
+                autoFocus
+                className="task-text-input"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onFocus={(e) => e.currentTarget.select()}
+                onBlur={handleEditStackBlur}
+                onKeyDown={(e) => {
+                  if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelEdit();
+                    return;
+                  }
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    commitAll();
+                    return;
+                  }
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    setSummaryFieldVisible(true);
+                  }
+                }}
+              />
+              {summaryFieldVisible ? (
+              <textarea
+                ref={summaryTextareaRef}
+                className="task-summary-input task-summary-input-edit"
+                placeholder="概要・メモ（改行可／⌘+Enter または Ctrl+Enter で保存）"
+                value={summaryDraft}
+                onChange={(e) => setSummaryDraft(e.target.value)}
+                onBlur={handleEditStackBlur}
+                rows={3}
+                aria-label="タスクの概要"
+                onKeyDown={(e) => {
+                  if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelEdit();
+                    return;
+                  }
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    commitAll();
+                  }
+                }}
+              />
+              ) : null}
+            </div>
+          ) : (
+            <div
+              className="task-readonly-stack"
+              onClick={openTextOrSummary}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  startEdit();
+                }
+              }}
+              role="button"
+              tabIndex={0}
+            >
+              <span className="task-text task-text-readonly">{task.text}</span>
+              {task.summary?.trim() ? (
+                <p className="task-summary-display">{task.summary}</p>
+              ) : null}
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          className="icon-btn drag-handle"
+          aria-label="並び替え"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical size={16} />
+        </button>
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={() => removeEntry({ entryId })}
+          aria-label="削除"
+        >
+          <Trash2 size={16} />
+        </button>
+      </div>
     </li>
   );
 }
