@@ -18,13 +18,17 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useMutation, useQuery } from 'convex/react';
 import { Check, GripVertical, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../convex/_generated/api';
 import type { Doc, Id } from '../../convex/_generated/dataModel';
 import { isCloudConfigured } from '../lib/cloudConfig';
 
 type QuestKind = 'main' | 'tanomi';
 type Task = Doc<'tasks'>;
+
+type ListRow =
+  | { kind: 'task'; entryId: Id<'taskListEntries'>; task: Task }
+  | { kind: 'section'; entryId: Id<'taskListEntries'>; sectionTitle: string };
 
 const QUEST_IMG: Record<QuestKind, string> = {
   main: '/quests/mainquest.png',
@@ -66,6 +70,114 @@ function QuestIcon({ kind, onCycle }: QuestIconProps) {
   );
 }
 
+function SectionLabelField({
+  entryId,
+  sectionTitle,
+}: {
+  entryId: Id<'taskListEntries'>;
+  sectionTitle: string;
+}) {
+  const updateTitle = useMutation(api.taskList.updateSectionTitle);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(sectionTitle);
+
+  const commit = () => {
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== sectionTitle) {
+      void updateTitle({ entryId, title: trimmed });
+    }
+    setDraft(sectionTitle);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        className="task-section-label-input"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onFocus={(e) => e.currentTarget.select()}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commit();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            setDraft(sectionTitle);
+            setEditing(false);
+          }
+        }}
+      />
+    );
+  }
+
+  return (
+    <span
+      className="task-section-label-text"
+      onClick={() => {
+        setDraft(sectionTitle);
+        setEditing(true);
+      }}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          setDraft(sectionTitle);
+          setEditing(true);
+        }
+      }}
+    >
+      {sectionTitle}
+    </span>
+  );
+}
+
+function SortableSectionRow({ row }: { row: Extract<ListRow, { kind: 'section' }> }) {
+  const removeEntry = useMutation(api.taskList.removeEntry);
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: row.entryId });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 5 : undefined,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={`task-section-row ${isDragging ? 'dragging' : ''}`}
+    >
+      <div className="task-section-row-inner">
+        <span className="task-section-row-lead" aria-hidden />
+        <SectionLabelField entryId={row.entryId} sectionTitle={row.sectionTitle} />
+        <button
+          type="button"
+          className="icon-btn drag-handle"
+          aria-label="見出しの位置を変える"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical size={16} />
+        </button>
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label="見出しを削除"
+          onClick={() => removeEntry({ entryId: row.entryId })}
+        >
+          <Trash2 size={16} />
+        </button>
+      </div>
+    </li>
+  );
+}
+
 export function TasksPage() {
   if (!isCloudConfigured) {
     return (
@@ -94,7 +206,9 @@ export function TasksPage() {
           </SignedIn>
           <SignedOut>
             <SignInButton mode="modal">
-              <button className="primary-btn">sign in</button>
+              <button type="button" className="primary-btn">
+                sign in
+              </button>
             </SignInButton>
           </SignedOut>
         </div>
@@ -112,22 +226,31 @@ export function TasksPage() {
 }
 
 function TaskList() {
-  const tasks = useQuery(api.tasks.list);
-  const create = useMutation(api.tasks.create);
-  const clearCompleted = useMutation(api.tasks.clearCompleted);
-  const reorder = useMutation(api.tasks.reorder).withOptimisticUpdate(
-    (localStore, { orderedIds }) => {
-      const current = localStore.getQuery(api.tasks.list, {});
-      if (!current) return;
-      const byId = new Map(current.map((t) => [t._id, t]));
-      const next: Task[] = [];
-      orderedIds.forEach((id, i) => {
-        const t = byId.get(id);
-        if (t) next.push({ ...t, order: i });
-      });
-      localStore.setQuery(api.tasks.list, {}, next);
+  const rows = useQuery(api.taskList.list);
+  const bootstrap = useMutation(api.taskList.bootstrapIfNeeded);
+  const addTask = useMutation(api.taskList.addTask);
+  const addSection = useMutation(api.taskList.addSection);
+  const clearCompleted = useMutation(api.taskList.clearCompleted);
+
+  const reorderEntries = useMutation(api.taskList.reorderEntries).withOptimisticUpdate(
+    (localStore, { orderedEntryIds }) => {
+      const cur = localStore.getQuery(api.taskList.list, {});
+      if (!cur) return;
+      const byId = new Map(cur.map((r) => [r.entryId, r]));
+      const next: ListRow[] = [];
+      for (const id of orderedEntryIds) {
+        const r = byId.get(id);
+        if (r) next.push(r);
+      }
+      localStore.setQuery(api.taskList.list, {}, next);
     }
   );
+
+  useEffect(() => {
+    if (rows !== undefined) {
+      void bootstrap({});
+    }
+  }, [rows, bootstrap]);
 
   const [draft, setDraft] = useState('');
 
@@ -136,7 +259,7 @@ function TaskList() {
     const text = draft.trim();
     if (!text) return;
     setDraft('');
-    await create({ text });
+    await addTask({ text });
   };
 
   const sensors = useSensors(
@@ -144,18 +267,30 @@ function TaskList() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  const entryIds = useMemo(() => rows?.map((r) => r.entryId) ?? [], [rows]);
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    if (!over || active.id === over.id || !tasks) return;
-    const oldIndex = tasks.findIndex((t) => t._id === active.id);
-    const newIndex = tasks.findIndex((t) => t._id === over.id);
+    if (!over || !rows) return;
+    const a = String(active.id);
+    const o = String(over.id);
+    if (a === o) return;
+    const oldIndex = entryIds.indexOf(a as Id<'taskListEntries'>);
+    const newIndex = entryIds.indexOf(o as Id<'taskListEntries'>);
     if (oldIndex < 0 || newIndex < 0) return;
-    const orderedIds = arrayMove(tasks, oldIndex, newIndex).map((t) => t._id);
-    reorder({ orderedIds });
+    void reorderEntries({
+      orderedEntryIds: arrayMove(entryIds, oldIndex, newIndex),
+    });
   };
 
-  const remaining = tasks?.filter((t) => !t.done).length ?? 0;
-  const completed = tasks?.filter((t) => t.done).length ?? 0;
+  const tasksInList = useMemo(
+    () => (rows ?? []).filter((r): r is Extract<ListRow, { kind: 'task' }> => r.kind === 'task'),
+    [rows]
+  );
+  const remaining = tasksInList.filter((r) => !r.task.done).length;
+  const completed = tasksInList.filter((r) => r.task.done).length;
+
+  const loading = rows === undefined;
 
   return (
     <>
@@ -173,41 +308,53 @@ function TaskList() {
             }
           }}
         />
-        <button className="primary-btn" type="submit" disabled={!draft.trim()}>
+        <button type="submit" className="primary-btn" disabled={!draft.trim()}>
           add
         </button>
       </form>
 
-      {tasks === undefined ? (
+      {loading ? (
         <div className="notice muted">loading...</div>
-      ) : tasks.length === 0 ? (
-        <div className="notice muted">タスクはまだありません。</div>
       ) : (
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
         >
-          <SortableContext
-            items={tasks.map((t) => t._id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <ul className="task-list">
-              {tasks.map((t) => (
-                <SortableTaskItem key={t._id} task={t} />
-              ))}
+          <SortableContext items={entryIds} strategy={verticalListSortingStrategy}>
+            <ul className="task-list task-list-unified">
+              {(rows ?? []).map((row) =>
+                row.kind === 'section' ? (
+                  <SortableSectionRow key={row.entryId} row={row} />
+                ) : (
+                  <SortableTaskItem key={row.entryId} task={row.task} entryId={row.entryId} />
+                )
+              )}
+              {rows.length === 0 && (
+                <li className="task-list-empty muted">タスクはまだありません。</li>
+              )}
             </ul>
           </SortableContext>
+
+          <div className="task-add-block-wrap">
+            <button
+              type="button"
+              className="ghost-btn task-add-block-btn"
+              onClick={() => void addSection({})}
+            >
+              + 見出しを追加
+            </button>
+          </div>
         </DndContext>
       )}
 
-      {tasks && tasks.length > 0 && (
+      {tasksInList.length > 0 && (
         <div className="task-footer">
           <span className="muted">
             {remaining} 件残り / {completed} 件完了
           </span>
           {completed > 0 && (
-            <button className="ghost-btn" onClick={() => clearCompleted({})}>
+            <button type="button" className="ghost-btn" onClick={() => clearCompleted({})}>
               完了を削除
             </button>
           )}
@@ -217,9 +364,15 @@ function TaskList() {
   );
 }
 
-function SortableTaskItem({ task }: { task: Task }) {
+function SortableTaskItem({
+  task,
+  entryId,
+}: {
+  task: Task;
+  entryId: Id<'taskListEntries'>;
+}) {
   const toggle = useMutation(api.tasks.toggle);
-  const remove = useMutation(api.tasks.remove);
+  const removeEntry = useMutation(api.taskList.removeEntry);
   const setKind = useMutation(api.tasks.setKind);
   const updateText = useMutation(api.tasks.updateText);
 
@@ -227,7 +380,7 @@ function SortableTaskItem({ task }: { task: Task }) {
   const [draft, setDraft] = useState(task.text);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: task._id, disabled: isEditing });
+    useSortable({ id: entryId, disabled: isEditing });
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -260,6 +413,7 @@ function SortableTaskItem({ task }: { task: Task }) {
       className={`task-item ${task.done ? 'done' : ''} ${isDragging ? 'dragging' : ''}`}
     >
       <button
+        type="button"
         className={`check-btn ${task.done ? 'checked' : ''}`}
         onClick={() => toggle({ id: task._id as Id<'tasks'> })}
         aria-label={task.done ? '未完了に戻す' : '完了'}
@@ -308,6 +462,7 @@ function SortableTaskItem({ task }: { task: Task }) {
         </span>
       )}
       <button
+        type="button"
         className="icon-btn drag-handle"
         aria-label="並び替え"
         {...attributes}
@@ -316,8 +471,9 @@ function SortableTaskItem({ task }: { task: Task }) {
         <GripVertical size={16} />
       </button>
       <button
+        type="button"
         className="icon-btn"
-        onClick={() => remove({ id: task._id as Id<'tasks'> })}
+        onClick={() => removeEntry({ entryId })}
         aria-label="削除"
       >
         <Trash2 size={16} />

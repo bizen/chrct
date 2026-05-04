@@ -322,6 +322,109 @@ body {
   opacity: 0.8;
 }
 
+.task-add-block-wrap {
+  margin: 1rem 0 0;
+}
+
+.task-add-block-btn {
+  width: 100%;
+  justify-content: center;
+  padding: 0.55rem 1rem;
+  font-size: 0.9rem;
+}
+
+.task-list-unified {
+  margin-bottom: 0.25rem;
+}
+
+.task-list-empty {
+  list-style: none;
+  padding: 0.65rem 0;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.task-section-row {
+  list-style: none;
+}
+
+.task-section-row.dragging {
+  opacity: 0.92;
+}
+
+.task-section-row-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem 0 0.5rem;
+  background: var(--bg-color);
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 0;
+  margin-bottom: 0.15rem;
+}
+
+.task-section-row-lead {
+  flex-shrink: 0;
+  width: calc(22px + 0.75rem + 36px + 0.75rem);
+}
+
+.task-section-label-text {
+  flex: 1;
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.92);
+  cursor: text;
+  padding: 0.2rem 0.25rem;
+  border-radius: 4px;
+  min-width: 0;
+  word-break: break-word;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+
+.task-section-label-text:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
+.task-section-label-input {
+  flex: 1;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border: none;
+  outline: none;
+  padding: 0.2rem 0.25rem;
+  border-radius: 4px;
+  min-width: 0;
+}
+
+.task-section-empty {
+  list-style: none;
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  border: 1px dashed var(--border-color);
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 0.85rem;
+  text-align: center;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+}
+
+.task-section-empty-active {
+  border-color: var(--accent-color);
+  background: rgba(96, 165, 250, 0.06);
+}
+
 .task-list {
   list-style: none;
   display: flex;
