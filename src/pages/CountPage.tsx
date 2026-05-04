@@ -1,4 +1,4 @@
-import { useAuth, SignInButton, SignedIn, SignedOut, UserButton } from '@clerk/clerk-react';
+import { useAuth } from '@clerk/clerk-react';
 import { useMutation, useQuery } from 'convex/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Trash2 } from 'lucide-react';
@@ -235,21 +235,9 @@ function CountPageCloud() {
       onTextChange={handleChange}
       stats={stats}
       headerActions={
-        <>
-          <SignedIn>
-            <UserButton afterSignOutUrl="/" />
-          </SignedIn>
-          <SignedOut>
-            <SignInButton mode="modal">
-              <button type="button" className="primary-btn">
-                sign in
-              </button>
-            </SignInButton>
-          </SignedOut>
-          <button type="button" className="ghost-btn" onClick={clear} disabled={text.length === 0}>
-            clear
-          </button>
-        </>
+        <button type="button" className="ghost-btn" onClick={clear} disabled={text.length === 0}>
+          clear
+        </button>
       }
       stocks={stocks}
       stocksLoading={stocksLoading}

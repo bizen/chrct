@@ -1,4 +1,4 @@
-import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react';
+import { SignedIn, SignedOut } from '@clerk/clerk-react';
 import {
   DndContext,
   KeyboardSensor,
@@ -200,18 +200,6 @@ export function TasksPage() {
     <section className="page">
       <div className="page-header">
         <h1 className="page-title">tasks</h1>
-        <div className="page-header-actions">
-          <SignedIn>
-            <UserButton afterSignOutUrl="/" />
-          </SignedIn>
-          <SignedOut>
-            <SignInButton mode="modal">
-              <button type="button" className="primary-btn">
-                sign in
-              </button>
-            </SignInButton>
-          </SignedOut>
-        </div>
       </div>
 
       <SignedOut>

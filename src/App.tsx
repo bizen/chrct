@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { AppHeaderAuth } from './components/AppHeaderAuth';
 import { Mascot } from './components/Mascot';
 import { SplashScreen } from './components/SplashScreen';
+import { isCloudConfigured } from './lib/cloudConfig';
 import { CountPage } from './pages/CountPage';
 import { TasksPage } from './pages/TasksPage';
 
@@ -30,14 +32,21 @@ export default function App() {
       <div className="app-shell">
         <header className="app-header">
           <div className="brand">chrct</div>
-          <nav className="app-nav">
-            <NavLink to="/count" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              count
-            </NavLink>
-            <NavLink to="/tasks" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              tasks
-            </NavLink>
-          </nav>
+          <div className="app-header-end">
+            <nav className="app-nav">
+              <NavLink to="/count" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+                count
+              </NavLink>
+              <NavLink to="/tasks" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+                tasks
+              </NavLink>
+            </nav>
+            {isCloudConfigured ? (
+              <div className="app-header-auth">
+                <AppHeaderAuth />
+              </div>
+            ) : null}
+          </div>
         </header>
 
         <main className="app-main">
