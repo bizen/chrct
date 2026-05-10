@@ -19,6 +19,12 @@ export default defineSchema({
         kind: v.optional(v.union(v.literal("main"), v.literal("tanomi"))),
         /** タスクの補足・概要（任意） */
         summary: v.optional(v.string()),
+        /** Today内で予定表として扱う開始/終了日時 */
+        scheduleStartAt: v.optional(v.number()),
+        scheduleEndAt: v.optional(v.number()),
+        /** 旧スキーマの名残。既存ドキュメント互換用（新規コードでは使わない） */
+        scheduleStart: v.optional(v.string()),
+        scheduleEnd: v.optional(v.string()),
         /** 旧スキーマの名残。既存ドキュメント互換用（新規コードでは使わない） */
         order: v.optional(v.number()),
         /** 旧ブロック参照（テーブル削除後もDBに残る場合の互換） */

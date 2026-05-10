@@ -68,3 +68,27 @@ export const setKind = mutation({
         await ctx.db.patch(id, { kind });
     },
 });
+
+export const updateSchedule = mutation({
+    args: {
+        id: v.id("tasks"),
+        scheduleStartAt: v.optional(v.number()),
+        scheduleEndAt: v.optional(v.number()),
+    },
+    handler: async (ctx, { id, scheduleStartAt, scheduleEndAt }) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) throw new Error("Unauthorized");
+
+        const task = await ctx.db.get(id);
+        if (!task || task.userId !== identity.subject) {
+            throw new Error("Not found");
+        }
+
+        await ctx.db.patch(id, {
+            scheduleStartAt,
+            scheduleEndAt,
+            scheduleStart: undefined,
+            scheduleEnd: undefined,
+        });
+    },
+});

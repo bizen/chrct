@@ -347,6 +347,119 @@ body {
 
 /* ---------- Tasks Page ---------- */
 
+.tasks-workspace {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+}
+
+.today-timeline {
+  display: none;
+}
+
+@media (min-width: 1180px) and (min-height: 700px) {
+  .today-timeline {
+    position: absolute;
+    top: 0.1rem;
+    right: calc(100% + 4rem);
+    display: block;
+    width: 190px;
+    color: var(--text-secondary);
+  }
+
+  .today-timeline-title {
+    margin-bottom: 0.65rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .today-timeline-track {
+    position: relative;
+    height: min(36rem, calc(100vh - 13rem));
+    min-height: 28rem;
+    border-left: 1px solid rgba(255, 255, 255, 0.18);
+  }
+
+  .today-timeline-tick {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .today-timeline-tick span {
+    position: absolute;
+    left: -0.15rem;
+    top: -0.5rem;
+    width: 2.8rem;
+    color: rgba(148, 163, 184, 0.72);
+    font-size: 0.64rem;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    transform: translateX(-100%);
+  }
+
+  .today-timeline-now {
+    position: absolute;
+    left: -0.25rem;
+    right: 0;
+    border-top: 1px solid rgba(96, 165, 250, 0.8);
+  }
+
+  .today-timeline-now span {
+    position: absolute;
+    left: -0.4rem;
+    top: -0.55rem;
+    padding: 0.05rem 0.25rem;
+    border-radius: 999px;
+    background: rgba(96, 165, 250, 0.16);
+    color: #93c5fd;
+    font-size: 0.62rem;
+    line-height: 1;
+    transform: translateX(-100%);
+  }
+
+  .today-timeline-block {
+    position: absolute;
+    left: 1rem;
+    right: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.35rem;
+    min-height: 1.4rem;
+    padding: 0.28rem 0.4rem;
+    overflow: hidden;
+    border: 1px solid rgba(96, 165, 250, 0.34);
+    border-radius: 6px;
+    background: rgba(96, 165, 250, 0.09);
+  }
+
+  .today-timeline-number {
+    width: 1rem;
+    color: #93c5fd;
+    font-size: 0.68rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.25;
+    flex-shrink: 0;
+  }
+
+  .today-timeline-text {
+    min-width: 0;
+    color: rgba(226, 232, 240, 0.92);
+    font-size: 0.68rem;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
 .task-input-row {
   display: flex;
   gap: 0.5rem;
@@ -440,6 +553,244 @@ body {
   padding: 0.65rem 0;
   font-size: 0.9rem;
   text-align: center;
+}
+
+.task-today-row {
+  list-style: none;
+}
+
+.task-today-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 1rem;
+  padding: 0.65rem 0 0.6rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.36);
+}
+
+.task-today-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.task-today-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #ffffff;
+}
+
+.task-today-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 2.25rem;
+  height: 1.45rem;
+  padding: 0 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
+.task-schedule-picker {
+  position: relative;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.task-schedule-chip {
+  width: 4.7rem;
+  height: 1.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.035);
+  color: rgba(255, 255, 255, 0.46);
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s,
+    color 0.15s;
+}
+
+.task-schedule-chip:hover,
+.task-schedule-chip:focus-visible {
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.task-schedule-chip.has-time {
+  width: 3.85rem;
+  height: 2.25rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.task-schedule-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  font-size: 0.68rem;
+  line-height: 1;
+}
+
+.task-schedule-stack-row {
+  display: grid;
+  grid-template-columns: 2.4rem 0.6rem;
+  align-items: baseline;
+}
+
+.task-schedule-stack-time {
+  text-align: center;
+}
+
+.task-schedule-stack-line {
+  width: 2.05rem;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.task-schedule-day {
+  color: #93c5fd;
+  font-size: 0.58rem;
+  text-align: left;
+}
+
+.task-schedule-popover {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 20;
+  width: min(17rem, calc(100vw - 2rem));
+  padding: 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #111827;
+  box-shadow: 0 14px 34px -14px rgba(0, 0, 0, 0.8);
+}
+
+.task-schedule-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.task-schedule-group + .task-schedule-group {
+  margin-top: 0.55rem;
+}
+
+.task-schedule-group-label {
+  width: 2.6rem;
+  padding-top: 0.32rem;
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.task-schedule-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.task-schedule-option {
+  height: 1.6rem;
+  padding: 0 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.task-schedule-option:hover,
+.task-schedule-option.active {
+  border-color: var(--accent-color);
+  background: rgba(96, 165, 250, 0.12);
+}
+
+.task-schedule-option.suggested {
+  border-color: rgba(96, 165, 250, 0.72);
+  background: rgba(96, 165, 250, 0.08);
+}
+
+.task-schedule-option.suggested:hover,
+.task-schedule-option.suggested.active {
+  border-color: var(--accent-color);
+  background: rgba(96, 165, 250, 0.08);
+}
+
+.task-schedule-option:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.task-schedule-option-hint {
+  color: #93c5fd;
+  font-size: 0.65rem;
+}
+
+.task-schedule-manual {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.task-schedule-input {
+  flex: 1;
+  min-width: 0;
+  height: 1.8rem;
+  padding: 0 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+
+.task-schedule-input:focus {
+  border-color: var(--accent-color);
+}
+
+.task-schedule-apply {
+  height: 1.8rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--accent-color);
+  border-radius: 6px;
+  background: var(--accent-color);
+  color: white;
+  font: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
 }
 
 .task-section-row {
@@ -564,6 +915,15 @@ body {
 
 .task-item-top--vcenter {
   align-items: center;
+}
+
+.task-item-top > .icon-btn {
+  align-self: flex-start;
+}
+
+.task-item-top--vcenter > .icon-btn,
+.task-item-top--vcenter .task-schedule-picker {
+  align-self: center;
 }
 
 .task-readonly-stack {
@@ -717,6 +1077,14 @@ body {
   transition: background-color 0.15s, border-color 0.15s;
 }
 
+.check-btn.numbered {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
 .check-btn:hover {
   border-color: var(--accent-color);
 }
@@ -724,6 +1092,7 @@ body {
 .check-btn.checked {
   background: var(--accent-color);
   border-color: var(--accent-color);
+  color: white;
 }
 
 .task-footer {
@@ -1006,6 +1375,21 @@ body {
 
   .page-title {
     font-size: 1.3rem;
+  }
+
+  .task-today-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .task-item-top {
+    gap: 0.55rem;
+  }
+
+  .quest-icon-md {
+    width: 32px;
+    height: 32px;
   }
 
   .mascot-container {

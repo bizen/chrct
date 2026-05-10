@@ -88,8 +88,9 @@ export const addTask = mutation({
     args: {
         text: v.string(),
         kind: v.optional(kindValidator),
+        insertBeforeEntryId: v.optional(v.id("taskListEntries")),
     },
-    handler: async (ctx, { text, kind }) => {
+    handler: async (ctx, { text, kind, insertBeforeEntryId }) => {
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) throw new Error("Unauthorized");
 
@@ -97,7 +98,19 @@ export const addTask = mutation({
             .query("taskListEntries")
             .withIndex("by_user", (q) => q.eq("userId", identity.subject))
             .collect();
-        const maxOrder = entries.reduce((m, e) => Math.max(m, e.order), -1);
+        let insertOrder = entries.reduce((m, e) => Math.max(m, e.order), -1) + 1;
+        if (insertBeforeEntryId) {
+            const before = await ctx.db.get(insertBeforeEntryId);
+            if (!before || before.userId !== identity.subject) throw new Error("Not found");
+            insertOrder = before.order;
+
+            const shifted = entries
+                .filter((e) => e.order >= insertOrder)
+                .sort((a, b) => b.order - a.order);
+            for (const e of shifted) {
+                await ctx.db.patch(e._id, { order: e.order + 1 });
+            }
+        }
 
         const taskId = await ctx.db.insert("tasks", {
             userId: identity.subject,
@@ -109,7 +122,7 @@ export const addTask = mutation({
 
         await ctx.db.insert("taskListEntries", {
             userId: identity.subject,
-            order: maxOrder + 1,
+            order: insertOrder,
             kind: "task",
             taskId,
         });
