@@ -438,6 +438,11 @@ body {
     background: rgba(96, 165, 250, 0.09);
   }
 
+  .today-timeline-block.done {
+    border-color: rgba(148, 163, 184, 0.24);
+    background: rgba(148, 163, 184, 0.04);
+  }
+
   .today-timeline-number {
     width: 1rem;
     color: #93c5fd;
