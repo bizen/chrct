@@ -45,6 +45,7 @@ type TimelineItem = {
   title: string;
   startAt: number;
   endAt: number;
+  done: boolean;
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -288,7 +289,7 @@ function TodayTimeline({
           return (
             <div
               key={item.entryId}
-              className="today-timeline-block"
+              className={`today-timeline-block${item.done ? ' done' : ''}`}
               style={{ top: `${top}%`, height: `${height}%` }}
             >
               <span className="today-timeline-number">{item.number}</span>
@@ -804,6 +805,7 @@ function TaskList() {
         title: row.task.text,
         startAt,
         endAt,
+        done: row.task.done,
       });
       nextNumber++;
     }

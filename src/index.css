@@ -365,7 +365,7 @@ body {
     top: 0.1rem;
     right: calc(100% + 4rem);
     display: block;
-    width: 190px;
+    width: 250px;
     color: var(--text-secondary);
   }
 
@@ -382,7 +382,6 @@ body {
     position: relative;
     height: min(36rem, calc(100vh - 13rem));
     min-height: 28rem;
-    border-left: 1px solid rgba(255, 255, 255, 0.18);
   }
 
   .today-timeline-tick {
@@ -457,6 +456,11 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .today-timeline-block.done .today-timeline-number,
+  .today-timeline-block.done .today-timeline-text {
+    text-decoration: line-through;
   }
 }
 
