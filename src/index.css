@@ -463,10 +463,6 @@ body {
     white-space: nowrap;
   }
 
-  .today-timeline-block.done .today-timeline-number,
-  .today-timeline-block.done .today-timeline-text {
-    text-decoration: line-through;
-  }
 }
 
 .task-input-row {
