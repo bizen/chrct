@@ -9,8 +9,7 @@
  */
 
 import type * as countStocks from "../countStocks.js";
-import type * as taskList from "../taskList.js";
-import type * as tasks from "../tasks.js";
+import type * as sync from "../sync.js";
 
 import type {
   ApiFromModules,
@@ -20,8 +19,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   countStocks: typeof countStocks;
-  taskList: typeof taskList;
-  tasks: typeof tasks;
+  sync: typeof sync;
 }>;
 
 /**

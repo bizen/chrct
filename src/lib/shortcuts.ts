@@ -1,0 +1,42 @@
+/**
+ * キーボードの一覧。ヘルプ（⌘/）とフッターの手引きで同じ定義を使う。
+ *
+ * footer を持つものだけがフッターに並ぶ。画面に手がかりが無くて
+ * 気づきにくいキーを選び、幅が限られるので短い言い方にしてある。
+ */
+export interface Shortcut {
+  keys: string;
+  label: string;
+  /** フッターに出すときの表記。無ければ出さない */
+  footer?: { keys?: string; label: string };
+}
+
+export const SHORTCUTS: Shortcut[] = [
+  { keys: 'Enter', label: '下に新しい行', footer: { label: '新しい行' } },
+  { keys: '↑ / ↓', label: '行を移動' },
+  { keys: '→', label: '行末から右へ抜けてメタ欄へ', footer: { label: 'メタ欄へ' } },
+  { keys: '← / →', label: 'メタ欄を歩く（← で本文へ戻る）' },
+  { keys: 'Tab / ⌘→', label: 'サブタスクにする', footer: { keys: 'Tab', label: 'サブタスク' } },
+  { keys: '⇧Tab / ⌘←', label: '1段上げる' },
+  { keys: '⌘↑ / ⌘↓', label: '行ごと並べ替え（子も一緒）' },
+  { keys: '⌘Enter', label: '完了 / 未完了', footer: { label: '完了' } },
+  { keys: '⇧Enter', label: 'メモを開く', footer: { label: 'メモ' } },
+  { keys: '⌥T', label: 'today に入れる / 外す', footer: { label: 'today' } },
+  { keys: '⌥E', label: '作業想定時間（30 / 45m / 1.5h / 1h30）', footer: { label: '想定時間' } },
+  { keys: '⌥M', label: 'クエスト種別（なし→橙→青）/ ラベルの色', footer: { label: '種別 / 色' } },
+  { keys: '⌥S', label: 'ラベルを追加' },
+  { keys: '⌥C', label: '完了を整理（完了済みへ移す）' },
+  { keys: '⌥⇧C', label: '完了を削除' },
+  { keys: '⌘⌫ / 空行で ⌫', label: '行を削除', footer: { keys: '⌘⌫', label: '削除' } },
+  { keys: '⌘Z', label: '取り消し', footer: { label: '取り消し' } },
+  { keys: '⌥1 / ⌥2', label: 'all / today' },
+  { keys: '⌘F', label: '検索' },
+  { keys: '⌘K', label: 'tasks ⇄ count を切り替え' },
+  { keys: '⌘/', label: 'この一覧', footer: { label: 'ぜんぶ見る' } },
+  { keys: 'Esc', label: '編集をやめる / 検索を消す' },
+];
+
+export const FOOTER_SHORTCUTS = SHORTCUTS.filter((s) => s.footer).map((s) => ({
+  keys: s.footer!.keys ?? s.keys,
+  label: s.footer!.label,
+}));

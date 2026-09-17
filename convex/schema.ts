@@ -2,7 +2,30 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
-    /** タスクと区切り見出しを1列に並べる */
+    /**
+     * タスクツリーの同期用ストア。
+     * クライアント（localStorage）が正で、ここは任意サインイン時のミラー。
+     * payload はアイテムの JSON。サーバ側は中身を解釈しない。
+     */
+    syncItems: defineTable({
+        userId: v.string(),
+        itemId: v.string(),
+        updatedAt: v.number(),
+        deletedAt: v.optional(v.number()),
+        payload: v.string(),
+    })
+        .index("by_user", ["userId"])
+        .index("by_user_item", ["userId", "itemId"]),
+
+    /** character count のストック（ログイン時に Convex へ） */
+    countStocks: defineTable({
+        userId: v.string(),
+        text: v.string(),
+        savedAt: v.number(),
+    }).index("by_user", ["userId"]),
+
+    /* ---------- 以下は旧スキーマ。既存ドキュメントの互換と一度きりの移行のためだけに残す ---------- */
+
     taskListEntries: defineTable({
         userId: v.string(),
         order: v.number(),
@@ -17,24 +40,24 @@ export default defineSchema({
         done: v.boolean(),
         createdAt: v.number(),
         kind: v.optional(v.union(v.literal("main"), v.literal("tanomi"))),
-        /** タスクの補足・概要（任意） */
         summary: v.optional(v.string()),
-        /** Today内で予定表として扱う開始/終了日時 */
+        dueDate: v.optional(v.string()),
+        assignedDate: v.optional(v.string()),
+        todayOrder: v.optional(v.number()),
+        goalId: v.optional(v.id("goals")),
         scheduleStartAt: v.optional(v.number()),
         scheduleEndAt: v.optional(v.number()),
-        /** 旧スキーマの名残。既存ドキュメント互換用（新規コードでは使わない） */
         scheduleStart: v.optional(v.string()),
         scheduleEnd: v.optional(v.string()),
-        /** 旧スキーマの名残。既存ドキュメント互換用（新規コードでは使わない） */
         order: v.optional(v.number()),
-        /** 旧ブロック参照（テーブル削除後もDBに残る場合の互換） */
         blockId: v.optional(v.string()),
     }).index("by_user", ["userId"]),
 
-    /** character count のストック（ログイン時に Convex へ） */
-    countStocks: defineTable({
+    goals: defineTable({
         userId: v.string(),
-        text: v.string(),
-        savedAt: v.number(),
+        title: v.string(),
+        dueDate: v.optional(v.string()),
+        order: v.number(),
+        createdAt: v.number(),
     }).index("by_user", ["userId"]),
 });

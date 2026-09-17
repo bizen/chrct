@@ -1,1121 +1,847 @@
-import { SignedIn, SignedOut } from '@clerk/clerk-react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ChevronRight } from 'lucide-react';
+import { KeyboardHelp } from '../components/KeyboardHelp';
+import { TaskRow } from '../components/task/TaskRow';
+import { focusFirstMeta } from '../lib/metaCursor';
+import { FOOTER_SHORTCUTS } from '../lib/shortcuts';
+import { formatEstimate } from '../lib/taskEstimate';
+import { localDateString } from '../lib/taskDates';
 import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  arrayMove,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { useMutation, useQuery } from 'convex/react';
-import { Check, Clock3, GripVertical, ListOrdered, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api } from '../../convex/_generated/api';
-import type { Doc, Id } from '../../convex/_generated/dataModel';
-import { isCloudConfigured } from '../lib/cloudConfig';
+  type Item,
+  type ItemMap,
+  type LabelColor,
+  type Row,
+  flattenAll,
+  flattenToday,
+} from '../lib/taskModel';
+import { taskStore, useTaskState } from '../lib/taskStore';
 
-type QuestKind = 'main' | 'tanomi';
-type Task = Doc<'tasks'>;
+type ViewMode = 'all' | 'today';
 
-type ListRow =
-  | { kind: 'task'; entryId: Id<'taskListEntries'>; task: Task }
-  | { kind: 'section'; entryId: Id<'taskListEntries'>; sectionTitle: string };
+/** 完了の演出が終わるまでの時間。CSS のアニメーションと合わせている */
+const BURST_MS = 620;
+/** 子タスクを点けていくときのずらし幅。増えすぎないよう頭打ちにする */
+const BURST_STAGGER_MS = 50;
+const BURST_STAGGER_MAX = 6;
+const EMPTY_BURST: ReadonlyMap<string, number> = new Map();
 
-type ScheduleHints = {
-  previousEndAt?: number;
-};
+/** 完了済みの棚を畳んでいたかどうかを覚えておく */
+const SHELF_OPEN_KEY = 'chrct.tasks.completedOpen';
 
-type StartOption = {
-  at: number;
-  hint?: string;
-};
-
-type TimelineItem = {
-  entryId: Id<'taskListEntries'>;
-  number: number;
-  title: string;
-  startAt: number;
-  endAt: number;
-  done: boolean;
-};
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-const QUEST_IMG: Record<QuestKind, string> = {
-  main: '/quests/mainquest.png',
-  tanomi: '/quests/tanomigoto.png',
-};
-
-const QUEST_LABEL: Record<QuestKind, string> = {
-  main: 'メインクエスト',
-  tanomi: '頼みごと',
-};
-
-function nextKind(kind: QuestKind | undefined): QuestKind | undefined {
-  if (kind === undefined) return 'main';
-  if (kind === 'main') return 'tanomi';
-  return undefined;
-}
-
-interface QuestIconProps {
-  kind: QuestKind | undefined;
-  onCycle: () => void;
-}
-
-function QuestIcon({ kind, onCycle }: QuestIconProps) {
-  const label = kind ? QUEST_LABEL[kind] : 'クエスト種別を選択';
-  return (
-    <button
-      type="button"
-      className={`quest-icon quest-icon-md${kind ? ' has-kind' : ''}`}
-      onClick={onCycle}
-      aria-label={label}
-      title={label}
-    >
-      {kind ? (
-        <img src={QUEST_IMG[kind]} alt="" />
-      ) : (
-        <span className="quest-icon-empty">+</span>
-      )}
-    </button>
-  );
-}
-
-function SectionLabelField({
-  entryId,
-  sectionTitle,
-}: {
-  entryId: Id<'taskListEntries'>;
-  sectionTitle: string;
-}) {
-  const updateTitle = useMutation(api.taskList.updateSectionTitle);
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(sectionTitle);
-
-  const commit = () => {
-    const trimmed = draft.trim();
-    if (trimmed && trimmed !== sectionTitle) {
-      void updateTitle({ entryId, title: trimmed });
-    }
-    setDraft(sectionTitle);
-    setEditing(false);
-  };
-
-  if (editing) {
-    return (
-      <input
-        autoFocus
-        className="task-section-label-input"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onFocus={(e) => e.currentTarget.select()}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            commit();
-          } else if (e.key === 'Escape') {
-            e.preventDefault();
-            setDraft(sectionTitle);
-            setEditing(false);
-          }
-        }}
-      />
-    );
+function loadShelfOpen(): boolean {
+  try {
+    // 何も入っていなければ開いた状態を既定にする
+    return localStorage.getItem(SHELF_OPEN_KEY) !== '0';
+  } catch {
+    return true;
   }
-
-  return (
-    <span
-      className="task-section-label-text"
-      onClick={() => {
-        setDraft(sectionTitle);
-        setEditing(true);
-      }}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          setDraft(sectionTitle);
-          setEditing(true);
-        }
-      }}
-    >
-      {sectionTitle}
-    </span>
-  );
 }
+type Caret = number | 'start' | 'end';
+type FocusTarget = 'title' | 'note';
+type PendingFocus = { id: string; target: FocusTarget; caret: Caret };
 
-function SortableSectionRow({ row }: { row: Extract<ListRow, { kind: 'section' }> }) {
-  const removeEntry = useMutation(api.taskList.removeEntry);
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: row.entryId });
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 5 : undefined,
-  };
-
-  return (
-    <li
-      ref={setNodeRef}
-      style={style}
-      className={`task-section-row ${isDragging ? 'dragging' : ''}`}
-    >
-      <div className="task-section-row-inner">
-        <span className="task-section-row-lead" aria-hidden />
-        <SectionLabelField entryId={row.entryId} sectionTitle={row.sectionTitle} />
-        <button
-          type="button"
-          className="icon-btn drag-handle"
-          aria-label="見出しの位置を変える"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical size={16} />
-        </button>
-        <button
-          type="button"
-          className="icon-btn"
-          aria-label="見出しを削除"
-          onClick={() => removeEntry({ entryId: row.entryId })}
-        >
-          <Trash2 size={16} />
-        </button>
-      </div>
-    </li>
-  );
-}
-
-function TodayHeader({
-  count,
-}: {
-  count: number;
-}) {
-  return (
-    <div className="task-today-header">
-      <div className="task-today-title-row">
-        <div className="task-today-title">today</div>
-        <div className="task-today-count" title="Today内のタスク数">
-          <ListOrdered size={14} />
-          <span>{count}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ceilToStep(at: number, stepMs: number): number {
-  return Math.ceil(at / stepMs) * stepMs;
-}
-
-function timelineStepForSpan(span: number): number {
-  const hour = 60 * 60 * 1000;
-  if (span <= 6 * hour) return hour;
-  if (span <= 14 * hour) return 2 * hour;
-  return 4 * hour;
-}
-
-function buildTimelineTicks(startAt: number, endAt: number): number[] {
-  const step = timelineStepForSpan(endAt - startAt);
-  const ticks: number[] = [];
-  for (let tick = ceilToStep(startAt, step); tick < endAt; tick += step) {
-    ticks.push(tick);
-  }
-  return ticks;
-}
-
-function TodayTimeline({
-  items,
-  nowAt,
-}: {
-  items: TimelineItem[];
-  nowAt: number;
-}) {
-  if (items.length === 0) return null;
-
-  const starts = items.map((item) => item.startAt);
-  const ends = items.map((item) => item.endAt);
-  const firstStart = Math.min(...starts);
-  const lastEnd = Math.max(...ends);
-  const hour = 60 * 60 * 1000;
-  const padding = 30 * 60 * 1000;
-  const minSpan = 3 * hour;
-  const rawStart = firstStart - padding;
-  const rawEnd = lastEnd + padding;
-  const rawSpan = rawEnd - rawStart;
-  const midpoint = (firstStart + lastEnd) / 2;
-  const windowStart = rawSpan < minSpan ? midpoint - minSpan / 2 : rawStart;
-  const windowEnd = rawSpan < minSpan ? midpoint + minSpan / 2 : rawEnd;
-  const windowSpan = windowEnd - windowStart;
-  const ticks = buildTimelineTicks(windowStart, windowEnd);
-  const nowTop = ((nowAt - windowStart) / windowSpan) * 100;
-  const showNow = nowTop >= 0 && nowTop <= 100;
-
-  return (
-    <aside className="today-timeline" aria-label="Today timeline">
-      <div className="today-timeline-title">timeline</div>
-      <div className="today-timeline-track">
-        {ticks.map((tick) => {
-          const top = ((tick - windowStart) / windowSpan) * 100;
-          return (
-            <div key={tick} className="today-timeline-tick" style={{ top: `${top}%` }}>
-              <span>{formatClockWithDay(tick, nowAt)}</span>
-            </div>
-          );
-        })}
-        {showNow ? (
-          <div className="today-timeline-now" style={{ top: `${nowTop}%` }}>
-            <span>{formatClock(nowAt)}</span>
-          </div>
-        ) : null}
-        {items.map((item) => {
-          const clampedStart = Math.max(item.startAt, windowStart);
-          const clampedEnd = Math.min(item.endAt, windowEnd);
-          const top = ((clampedStart - windowStart) / windowSpan) * 100;
-          const height = Math.max(((clampedEnd - clampedStart) / windowSpan) * 100, 4);
-
-          return (
-            <div
-              key={item.entryId}
-              className={`today-timeline-block${item.done ? ' done' : ''}`}
-              style={{ top: `${top}%`, height: `${height}%` }}
-            >
-              <span className="today-timeline-number">{item.number}</span>
-              <span className="today-timeline-text">{item.title}</span>
-            </div>
-          );
-        })}
-      </div>
-    </aside>
-  );
-}
-
-function normalizeSchedulePart(value: string): string | undefined {
-  const compact = value.trim().replace(/[：.]/g, ':');
-  if (!compact) return undefined;
-
-  const match = compact.match(/^(\d{1,2})(?::?(\d{2}))?$/);
-  if (!match) return undefined;
-
-  const hour = Number(match[1]);
-  const minute = match[2] ? Number(match[2]) : 0;
-  if (hour > 23 || minute > 59) return undefined;
-
-  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-}
-
-function setLocalTime(baseAt: number, time: string): number | undefined {
-  const normalized = normalizeSchedulePart(time);
-  if (!normalized) return undefined;
-  const [hour, minute] = normalized.split(':').map(Number);
-  const date = new Date(baseAt);
-  date.setHours(hour, minute, 0, 0);
-  return date.getTime();
-}
-
-function floorToMinute(at: number): number {
-  const date = new Date(at);
-  date.setSeconds(0, 0);
-  return date.getTime();
-}
-
-function resolveNearestLocalTime(time: string, nowAt: number): number | undefined {
-  const candidate = setLocalTime(nowAt, time);
-  if (candidate === undefined) return undefined;
-  const candidates = [candidate - DAY_MS, candidate, candidate + DAY_MS];
-  return candidates.reduce((nearest, current) =>
-    Math.abs(current - nowAt) < Math.abs(nearest - nowAt) ? current : nearest
-  );
-}
-
-function isWithinRollingToday(at: number | undefined, nowAt: number): boolean {
-  return at !== undefined && at >= nowAt - DAY_MS && at <= nowAt + DAY_MS;
-}
-
-function parseScheduleRange(
-  value: string,
-  nowAt: number
-): { startAt?: number; endAt?: number } | undefined {
-  const trimmed = value.trim();
-  if (!trimmed) return {};
-
-  const parts = trimmed.split(/\s*(?:-|~|〜|から|to)\s*/i).filter(Boolean);
-  if (parts.length > 2) return undefined;
-
-  const start = normalizeSchedulePart(parts[0] ?? '');
-  const end = normalizeSchedulePart(parts[1] ?? '');
-  if (!start && !end) return undefined;
-
-  const startAt = start ? resolveNearestLocalTime(start, nowAt) : undefined;
-  let endAt = end ? setLocalTime(startAt ?? nowAt, end) : undefined;
-  if (startAt !== undefined && endAt !== undefined && endAt <= startAt) {
-    endAt += DAY_MS;
-  } else if (startAt === undefined && endAt !== undefined) {
-    endAt = end ? resolveNearestLocalTime(end, nowAt) : undefined;
-  }
-
-  if (startAt !== undefined && !isWithinRollingToday(startAt, nowAt)) return undefined;
-  if (endAt !== undefined && !isWithinRollingToday(endAt, nowAt)) return undefined;
-  if (startAt !== undefined && endAt !== undefined && endAt <= startAt) return undefined;
-
-  return { startAt, endAt };
-}
-
-function formatClock(at?: number): string | undefined {
-  if (at === undefined) return undefined;
-  const date = new Date(at);
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-}
-
-function localDayOffset(at: number | undefined, nowAt: number): number {
-  if (at === undefined) return 0;
-  const a = new Date(at);
-  const n = new Date(nowAt);
-  const aDay = new Date(a.getFullYear(), a.getMonth(), a.getDate()).getTime();
-  const nDay = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
-  return Math.round((aDay - nDay) / DAY_MS);
-}
-
-function formatDayOffset(at: number | undefined, nowAt: number): string {
-  const offset = localDayOffset(at, nowAt);
-  if (offset > 0) return `+${offset}`;
-  if (offset < 0) return String(offset);
-  return '';
-}
-
-function formatClockWithDay(at: number | undefined, nowAt: number): string | undefined {
-  const clock = formatClock(at);
-  if (!clock) return undefined;
-  return `${clock}${formatDayOffset(at, nowAt)}`;
-}
-
-function formatScheduleRange(startAt: number | undefined, endAt: number | undefined, nowAt: number): string {
-  const start = formatClockWithDay(startAt, nowAt);
-  const end = formatClockWithDay(endAt, nowAt);
-  if (start && end) return `${start}-${end}`;
-  if (start) return `${start}-`;
-  if (end) return `-${end}`;
-  return '';
-}
-
-function addMinutes(at: number | undefined, minutesToAdd: number, nowAt: number): number | undefined {
-  if (at === undefined) return undefined;
-  const next = at + minutesToAdd * 60 * 1000;
-  return isWithinRollingToday(next, nowAt) ? next : undefined;
-}
-
-function uniqueStartOptions(options: Array<{ at?: number; hint?: string }>, nowAt: number): StartOption[] {
-  const seen = new Set<number>();
-  const result: StartOption[] = [];
-  for (const option of options) {
-    if (!isWithinRollingToday(option.at, nowAt)) continue;
-    const at = option.at as number;
-    if (seen.has(at)) continue;
-    seen.add(at);
-    result.push({ at, hint: option.hint });
-  }
-  return result;
-}
-
-function legacyScheduleAt(time: string | undefined, nowAt: number): number | undefined {
-  return time ? resolveNearestLocalTime(time, nowAt) : undefined;
-}
-
-function legacyScheduleEndAt(
-  time: string | undefined,
-  startAt: number | undefined,
-  nowAt: number
-): number | undefined {
-  if (!time) return undefined;
-  let endAt = setLocalTime(startAt ?? nowAt, time);
-  if (endAt === undefined) return undefined;
-  if (startAt !== undefined && endAt <= startAt) {
-    endAt += DAY_MS;
-  } else if (startAt === undefined) {
-    endAt = resolveNearestLocalTime(time, nowAt) ?? endAt;
-  }
-  return isWithinRollingToday(endAt, nowAt) ? endAt : undefined;
-}
-
-function TaskScheduleEditor({
-  task,
-  hints,
-  nowAt,
-}: {
-  task: Task;
-  hints: ScheduleHints;
-  nowAt: number;
-}) {
-  const updateSchedule = useMutation(api.tasks.updateSchedule);
-  const pickerRef = useRef<HTMLDivElement | null>(null);
-  const scheduleStartAt = task.scheduleStartAt ?? legacyScheduleAt(task.scheduleStart, nowAt);
-  const scheduleEndAt = task.scheduleEndAt ?? legacyScheduleEndAt(task.scheduleEnd, scheduleStartAt, nowAt);
-  const value = formatScheduleRange(scheduleStartAt, scheduleEndAt, nowAt);
-  const hasSchedule = !!value;
-  const [isOpen, setIsOpen] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const [selectedStartAt, setSelectedStartAt] = useState<number | undefined>(
-    scheduleStartAt ?? hints.previousEndAt
-  );
-
-  const startOptions = uniqueStartOptions([
-    { at: nowAt, hint: 'now' },
-    { at: scheduleStartAt, hint: 'set' },
-    { at: hints.previousEndAt, hint: '+0m' },
-    { at: addMinutes(hints.previousEndAt, 5, nowAt), hint: '+5m' },
-    { at: addMinutes(hints.previousEndAt, 10, nowAt), hint: '+10m' },
-    { at: addMinutes(hints.previousEndAt, 15, nowAt), hint: '+15m' },
-    { at: addMinutes(hints.previousEndAt, 30, nowAt), hint: '+30m' },
-    { at: resolveNearestLocalTime('09:00', nowAt) },
-    { at: resolveNearestLocalTime('10:00', nowAt) },
-    { at: resolveNearestLocalTime('11:00', nowAt) },
-    { at: resolveNearestLocalTime('13:00', nowAt) },
-    { at: resolveNearestLocalTime('14:00', nowAt) },
-    { at: resolveNearestLocalTime('15:00', nowAt) },
-    { at: resolveNearestLocalTime('16:00', nowAt) },
-    { at: resolveNearestLocalTime('17:00', nowAt) },
-  ], nowAt);
-
-  const saveSchedule = (nextStartAt?: number, nextEndAt?: number, close = true) => {
-    if (nextStartAt !== undefined && !isWithinRollingToday(nextStartAt, nowAt)) return;
-    if (nextEndAt !== undefined && !isWithinRollingToday(nextEndAt, nowAt)) return;
-    if (nextStartAt !== undefined && nextEndAt !== undefined && nextEndAt <= nextStartAt) return;
-    if (nextStartAt === scheduleStartAt && nextEndAt === scheduleEndAt) {
-      if (close) setIsOpen(false);
-      return;
-    }
-    void updateSchedule({
-      id: task._id as Id<'tasks'>,
-      scheduleStartAt: nextStartAt,
-      scheduleEndAt: nextEndAt,
-    });
-    if (close) setIsOpen(false);
-  };
-
-  const commit = () => {
-    const parsed = parseScheduleRange(draft, nowAt);
-    if (!parsed) {
-      setDraft(value);
-      setIsOpen(false);
-      return;
-    }
-    saveSchedule(parsed.startAt, parsed.endAt);
-  };
-
-  const cancel = () => {
-    setDraft(value);
-    setSelectedStartAt(scheduleStartAt ?? hints.previousEndAt);
-    setIsOpen(false);
-  };
-
+/** 日付が変わったら today 表示も追従させる */
+function useTodayDate(): string {
+  const [todayDate, setTodayDate] = useState(() => localDateString());
   useEffect(() => {
-    if (!isOpen) return;
+    const id = setInterval(() => {
+      const next = localDateString();
+      setTodayDate((current) => (current === next ? current : next));
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return todayDate;
+}
 
-    const handlePointerDown = (event: PointerEvent) => {
-      const picker = pickerRef.current;
-      if (!picker || picker.contains(event.target as Node)) return;
-      cancel();
-    };
+/**
+ * 「完了を整理」で棚へ送った行を、リストから切り分ける。
+ *
+ * 完了しただけの行はその場に残る。棚へ移るのは filed が立ったものとその部分木。
+ * いま完了の演出が出ている行は、演出が終わるまで元の場所に置いたままにする。
+ */
+function partitionCompleted(
+  rows: Row[],
+  items: ItemMap,
+  bursting: ReadonlyMap<string, number>
+): { active: Row[]; done: Row[] } {
+  const active: Row[] = [];
+  const done: Row[] = [];
+  let baseDepth: number | null = null;
 
-    document.addEventListener('pointerdown', handlePointerDown);
-    return () => document.removeEventListener('pointerdown', handlePointerDown);
-  });
+  for (const row of rows) {
+    if (baseDepth !== null && row.depth > baseDepth) {
+      done.push({ item: row.item, depth: row.depth - baseDepth });
+      continue;
+    }
+    baseDepth = null;
 
-  return (
-    <div ref={pickerRef} className="task-schedule-picker">
-      <button
-        type="button"
-        className={`task-schedule-chip${hasSchedule ? ' has-time' : ''}`}
-        onClick={() => {
-          setDraft(value);
-          setSelectedStartAt(scheduleStartAt ?? hints.previousEndAt);
-          setIsOpen((open) => !open);
-        }}
-        aria-label="タスクの予定時間を編集"
-        title="例: 9-10 / 9:30-11"
-      >
-        {hasSchedule ? (
-          <span className="task-schedule-stack">
-            <span className="task-schedule-stack-row">
-              <span className="task-schedule-stack-time">{formatClock(scheduleStartAt) ?? '--:--'}</span>
-              <span className="task-schedule-day">
-                {formatDayOffset(scheduleStartAt, nowAt)}
-              </span>
-            </span>
-            <span className="task-schedule-stack-line" aria-hidden />
-            <span className="task-schedule-stack-row">
-              <span className="task-schedule-stack-time">{formatClock(scheduleEndAt) ?? '--:--'}</span>
-              <span className="task-schedule-day">
-                {formatDayOffset(scheduleEndAt, nowAt)}
-              </span>
-            </span>
-          </span>
-        ) : (
-          <>
-            <Clock3 size={13} />
-            <span>time</span>
-          </>
-        )}
-      </button>
-      {isOpen ? (
-        <div className="task-schedule-popover">
-          <div className="task-schedule-group">
-            <span className="task-schedule-group-label">start</span>
-            <div className="task-schedule-options">
-              {startOptions.map(({ at, hint }) => (
-                <button
-                  key={at}
-                  type="button"
-                  className={`task-schedule-option${hint ? ' suggested' : ''}${selectedStartAt === at ? ' active' : ''}`}
-                  onClick={() => {
-                    setSelectedStartAt(at);
-                    setDraft(formatScheduleRange(at, scheduleEndAt, nowAt));
-                    saveSchedule(at, scheduleEndAt, false);
-                  }}
-                >
-                  <span>{formatClock(at)}</span>
-                  {formatDayOffset(at, nowAt) ? (
-                    <span className="task-schedule-option-hint">
-                      {formatDayOffset(at, nowAt)}
-                    </span>
-                  ) : null}
-                  {hint ? <span className="task-schedule-option-hint">{hint}</span> : null}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="task-schedule-group">
-            <span className="task-schedule-group-label">length</span>
-            <div className="task-schedule-options">
-              {[
-                { label: '15m', minutes: 15 },
-                { label: '30m', minutes: 30 },
-                { label: '1h', minutes: 60 },
-                { label: '2h', minutes: 120 },
-              ].map(({ label, minutes }) => {
-                const baseStart = selectedStartAt ?? scheduleStartAt ?? hints.previousEndAt;
-                const end = addMinutes(baseStart, minutes, nowAt);
-                return (
-                  <button
-                    key={label}
-                    type="button"
-                    className="task-schedule-option"
-                    disabled={!baseStart || !end}
-                    onClick={() => {
-                      if (!baseStart || !end) return;
-                      saveSchedule(baseStart, end);
-                    }}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="task-schedule-manual">
-            <input
-              className="task-schedule-input"
-              value={draft}
-              placeholder="9-10"
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  commit();
-                } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  cancel();
-                }
-              }}
-              aria-label="タスクの予定時間"
-            />
-            <button type="button" className="task-schedule-apply" onClick={commit}>
-              set
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
+    const { item } = row;
+    const parent = item.parentId ? items[item.parentId] : undefined;
+    const filed =
+      item.type === 'task' &&
+      item.done &&
+      item.filed === true &&
+      !bursting.has(item.id) &&
+      (!parent || parent.type === 'section');
+
+    if (filed) {
+      baseDepth = row.depth;
+      done.push({ item, depth: 0 });
+    } else {
+      active.push(row);
+    }
+  }
+
+  return { active, done };
+}
+
+/** 検索語に当たった行と、その祖先だけを残す */
+function filterRows(rows: Row[], query: string): Row[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return rows;
+
+  const matches = (item: Item) =>
+    item.text.toLowerCase().includes(needle) ||
+    (item.note ?? '').toLowerCase().includes(needle);
+
+  const kept: Row[] = [];
+  const ancestors: Row[] = [];
+  const emitted = new Set<string>();
+
+  for (const row of rows) {
+    ancestors.length = row.depth;
+    ancestors[row.depth] = row;
+
+    if (!matches(row.item)) continue;
+    for (let d = 0; d <= row.depth; d++) {
+      const ancestor = ancestors[d];
+      if (!ancestor || emitted.has(ancestor.item.id)) continue;
+      emitted.add(ancestor.item.id);
+      kept.push(ancestor);
+    }
+  }
+
+  return kept;
 }
 
 export function TasksPage() {
-  if (!isCloudConfigured) {
-    return (
-      <section className="page">
-        <div className="page-header">
-          <h1 className="page-title">tasks</h1>
-        </div>
-        <div className="notice">
-          <p>クラウド同期が未設定です。</p>
-          <p>
-            <code>VITE_CONVEX_URL</code> と <code>VITE_CLERK_PUBLISHABLE_KEY</code> を
-            <code>.env.local</code> に追加してください。
-          </p>
-        </div>
-      </section>
+  const { items } = useTaskState();
+  const todayDate = useTodayDate();
+
+  const [view, setView] = useState<ViewMode>('all');
+  const [query, setQuery] = useState('');
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [noteOpenId, setNoteOpenId] = useState<string | null>(null);
+  const [estimateEditId, setEstimateEditId] = useState<string | null>(null);
+  const [colorOpenId, setColorOpenId] = useState<string | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [completedOpen, setCompletedOpen] = useState(loadShelfOpen);
+  /** 完了した瞬間だけ演出を出す行。値は上から数えた順番（点灯のずらし用） */
+  const [burstOrder, setBurstOrder] = useState<ReadonlyMap<string, number>>(EMPTY_BURST);
+
+  const titleRefs = useRef(new Map<string, HTMLTextAreaElement>());
+  const noteRefs = useRef(new Map<string, HTMLTextAreaElement>());
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const pendingFocus = useRef<PendingFocus | null>(null);
+
+  const allRows = useMemo(() => flattenAll(items), [items]);
+  const todayRows = useMemo(() => flattenToday(items, todayDate), [items, todayDate]);
+  const { activeRows, doneRows } = useMemo(() => {
+    const source = view === 'today' ? todayRows : allRows;
+    const split = partitionCompleted(source, items, burstOrder);
+    return {
+      activeRows: filterRows(split.active, query),
+      doneRows: filterRows(split.done, query),
+    };
+  }, [view, todayRows, allRows, items, burstOrder, query]);
+
+  const doneCount = useMemo(
+    () => doneRows.filter((row) => row.item.type === 'task').length,
+    [doneRows]
+  );
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SHELF_OPEN_KEY, completedOpen ? '1' : '0');
+    } catch {
+      // 保存できなくても表示には困らない
+    }
+  }, [completedOpen]);
+
+  /** 検索中は、当たったものが隠れないよう棚を開けておく（この状態は覚えない） */
+  const shelfOpen = completedOpen || (query.trim() !== '' && doneRows.length > 0);
+
+  /** ↑↓ で行き来できる範囲。棚を開いているときはそこも含める */
+  const rows = useMemo(
+    () => (shelfOpen ? [...activeRows, ...doneRows] : activeRows),
+    [shelfOpen, activeRows, doneRows]
+  );
+
+  const todayNumbers = useMemo(() => {
+    const numbers = new Map<string, number>();
+    todayRows
+      .filter((row) => row.depth === 0)
+      .forEach((row, index) => numbers.set(row.item.id, index + 1));
+    return numbers;
+  }, [todayRows]);
+
+  const todayCleared = useMemo(
+    () =>
+      todayRows.length > 0 &&
+      todayRows.every((row) => row.item.type !== 'task' || row.item.done),
+    [todayRows]
+  );
+
+  const stats = useMemo(() => {
+    let remaining = 0;
+    let remainingMinutes = 0;
+    let completed = 0;
+    let fileable = 0;
+    for (const row of allRows) {
+      const { item } = row;
+      if (item.type !== 'task') continue;
+      if (!item.done) {
+        remaining += 1;
+        remainingMinutes += item.estimate ?? 0;
+        continue;
+      }
+      completed += 1;
+      const parent = item.parentId ? items[item.parentId] : undefined;
+      if (!item.filed && (!parent || parent.type === 'section')) fileable += 1;
+    }
+    return { remaining, remainingMinutes, completed, fileable };
+  }, [allRows, items]);
+
+  const applyFocus = useCallback((pending: PendingFocus): boolean => {
+    const map = pending.target === 'note' ? noteRefs.current : titleRefs.current;
+    const el = map.get(pending.id);
+    if (!el) return false;
+    el.focus();
+    const position =
+      pending.caret === 'start'
+        ? 0
+        : pending.caret === 'end'
+          ? el.value.length
+          : Math.min(pending.caret, el.value.length);
+    el.setSelectionRange(position, position);
+    return true;
+  }, []);
+
+  /**
+   * その行へフォーカスを移す。
+   * まだ DOM に無い行（今作ったばかりなど）は次のレンダーまで待つ。
+   * activeId は実際に focus が当たったときに onFocusRow が更新する。
+   */
+  const requestFocus = useCallback(
+    (id: string | null | undefined, target: FocusTarget = 'title', caret: Caret = 'end') => {
+      if (!id) return;
+      const pending: PendingFocus = { id, target, caret };
+      pendingFocus.current = applyFocus(pending) ? null : pending;
+    },
+    [applyFocus]
+  );
+
+  useLayoutEffect(() => {
+    const pending = pendingFocus.current;
+    if (!pending) return;
+    if (applyFocus(pending)) pendingFocus.current = null;
+  });
+
+  // 空っぽのときは最初の1行を用意して、すぐ打ち始められるようにする
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (allRows.length > 0) {
+      seeded.current = false;
+      return;
+    }
+    if (seeded.current) return; // StrictMode の二重実行で空行が増えないように
+    seeded.current = true;
+    requestFocus(taskStore.insertAfter(null));
+  }, [allRows.length, requestFocus]);
+
+  const rowIndexOf = useCallback(
+    (id: string) => rows.findIndex((row) => row.item.id === id),
+    [rows]
+  );
+
+  const moveFocus = useCallback(
+    (fromId: string, direction: -1 | 1, caret: Caret = 'end') => {
+      const index = rowIndexOf(fromId);
+      const target = rows[index + direction];
+      if (!target) return false;
+      requestFocus(target.item.id, 'title', caret);
+      return true;
+    },
+    [rowIndexOf, rows, requestFocus]
+  );
+
+  const removeRow = useCallback(
+    (id: string) => {
+      const index = rowIndexOf(id);
+      const fallback = rows[index - 1]?.item.id ?? rows[index + 1]?.item.id ?? null;
+      taskStore.remove(id);
+      if (noteOpenId === id) setNoteOpenId(null);
+      if (estimateEditId === id) setEstimateEditId(null);
+      if (colorOpenId === id) setColorOpenId(null);
+      requestFocus(fallback);
+    },
+    [rowIndexOf, rows, noteOpenId, estimateEditId, colorOpenId, requestFocus]
+  );
+
+  /** 開く前にフォーカスがあった場所。閉じたらそこへ返す */
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+
+  const rememberFocus = useCallback(() => {
+    returnFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }, []);
+
+  const restoreFocus = useCallback(
+    (id: string) => {
+      const back = returnFocusRef.current;
+      returnFocusRef.current = null;
+      if (back?.isConnected) back.focus();
+      else requestFocus(id);
+    },
+    [requestFocus]
+  );
+
+  const handleEstimateEditingChange = useCallback(
+    (id: string, editing: boolean) => {
+      if (editing) {
+        rememberFocus();
+        setEstimateEditId(id);
+        return;
+      }
+      setEstimateEditId(null);
+      restoreFocus(id);
+    },
+    [rememberFocus, restoreFocus]
+  );
+
+  const handleColorOpenChange = useCallback(
+    (id: string, open: boolean) => {
+      if (open) {
+        rememberFocus();
+        setColorOpenId(id);
+        return;
+      }
+      setColorOpenId(null);
+      restoreFocus(id);
+    },
+    [rememberFocus, restoreFocus]
+  );
+
+  /**
+   * 何も書かずに離れた行は片づける。
+   * ただし、同じ行のメタ欄や期限のポップオーバーへ移っただけのときは残す。
+   */
+  const handleTitleBlur = useCallback((id: string) => {
+    requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active instanceof HTMLElement) {
+        if (active.closest('.color-popover') || active.closest('.estimate-input')) return;
+        if (active.closest<HTMLElement>('.row')?.dataset.rowId === id) return;
+      }
+      taskStore.removeEmpty(id);
+    });
+  }, []);
+
+  const setLabelColor = useCallback((id: string, color: LabelColor | undefined) => {
+    taskStore.setLabelColor(id, color);
+  }, []);
+
+  const setViewMode = useCallback((next: ViewMode) => {
+    setView(next);
+    setEstimateEditId(null);
+    setColorOpenId(null);
+  }, []);
+
+  const burstTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * 完了にしたときだけ、その行に一度きりの演出を出す。戻すときは静かに。
+   * 子タスクも一緒に完了するので、上から順にわずかにずらして点ける。
+   */
+  const toggleDone = useCallback((id: string) => {
+    const items = taskStore.getState().items;
+    const becomesDone = items[id]?.done === false;
+    taskStore.toggleDone(id);
+    if (!becomesDone) return;
+
+    const visual = flattenAll(items);
+    const start = visual.findIndex((row) => row.item.id === id);
+    const order = new Map<string, number>([[id, 0]]);
+    if (start >= 0) {
+      const baseDepth = visual[start].depth;
+      for (let i = start + 1; i < visual.length && visual[i].depth > baseDepth; i++) {
+        const { item } = visual[i];
+        if (item.type === 'task' && !item.done) order.set(item.id, order.size);
+      }
+    }
+
+    if (burstTimer.current) clearTimeout(burstTimer.current);
+    setBurstOrder(order);
+    burstTimer.current = setTimeout(
+      () => setBurstOrder(EMPTY_BURST),
+      BURST_MS + Math.min(order.size, BURST_STAGGER_MAX) * BURST_STAGGER_MS
     );
-  }
+  }, []);
+
+  useEffect(() => () => {
+    if (burstTimer.current) clearTimeout(burstTimer.current);
+  }, []);
+
+  /** 画面のどこにいても効くショートカット */
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      const mod = event.metaKey || event.ctrlKey;
+
+      if (event.key === 'Escape') {
+        if (estimateEditId) {
+          handleEstimateEditingChange(estimateEditId, false);
+          event.preventDefault();
+          return;
+        }
+        if (colorOpenId) {
+          handleColorOpenChange(colorOpenId, false);
+          event.preventDefault();
+          return;
+        }
+        if (helpOpen) {
+          setHelpOpen(false);
+          event.preventDefault();
+          return;
+        }
+        if (query) {
+          setQuery('');
+          event.preventDefault();
+        }
+        return;
+      }
+
+      // 完了の片づけ。同じ C で、⇧ を足すと消すほうになる
+      // どこにフォーカスが無くても、矢印でリストに戻ってこられるようにする
+      if (!mod && !event.altKey && event.key.startsWith('Arrow')) {
+        if (helpOpen || document.querySelector('.color-popover')) return;
+
+        const active = document.activeElement;
+        if (active instanceof HTMLElement) {
+          // 行の中や色の選択中は、そちらの処理に任せる
+          if (active.closest('.row')) return;
+          if (active === searchRef.current) {
+            if (event.key !== 'ArrowDown') return;
+            event.preventDefault();
+            requestFocus(rows[0]?.item.id);
+            return;
+          }
+        }
+
+        event.preventDefault();
+        const index = activeId ? rows.findIndex((row) => row.item.id === activeId) : -1;
+        if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+          const step = event.key === 'ArrowDown' ? 1 : -1;
+          const target =
+            index >= 0
+              ? (rows[index + step] ?? rows[index])
+              : (event.key === 'ArrowDown' ? rows[0] : rows[rows.length - 1]);
+          requestFocus(target?.item.id);
+          return;
+        }
+        // ← → は、いまいる行に戻るだけ
+        requestFocus((index >= 0 ? rows[index] : rows[0])?.item.id);
+        return;
+      }
+
+      if (event.altKey && event.code === 'KeyC') {
+        event.preventDefault();
+        if (event.shiftKey) taskStore.clearCompleted();
+        else taskStore.fileCompleted();
+        return;
+      }
+
+      if (event.altKey && event.code === 'Digit1') {
+        event.preventDefault();
+        setViewMode('all');
+        return;
+      }
+      if (event.altKey && event.code === 'Digit2') {
+        event.preventDefault();
+        setViewMode('today');
+        return;
+      }
+      if (mod && event.code === 'KeyF') {
+        event.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+        return;
+      }
+      if (mod && event.code === 'Slash') {
+        event.preventDefault();
+        setHelpOpen((open) => !open);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [
+    estimateEditId,
+    colorOpenId,
+    helpOpen,
+    query,
+    rows,
+    activeId,
+    requestFocus,
+    handleEstimateEditingChange,
+    handleColorOpenChange,
+    setViewMode,
+  ]);
+
+  const handleTitleKeyDown = (
+    event: React.KeyboardEvent<HTMLTextAreaElement>,
+    item: Item
+  ) => {
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+    const el = event.currentTarget;
+    const mod = event.metaKey || event.ctrlKey;
+    const caret = el.selectionStart;
+
+    // ---- 行を作る / 分ける ----
+    if (event.key === 'Enter' && !event.shiftKey && !mod && !event.altKey) {
+      event.preventDefault();
+      const created = taskStore.insertAfter(item.id, {
+        type: 'task',
+        asChild: item.type === 'section',
+        assignedDate: view === 'today' ? todayDate : undefined,
+      });
+      requestFocus(created);
+      return;
+    }
+
+    if (event.key === 'Enter' && event.shiftKey && !mod) {
+      event.preventDefault();
+      setNoteOpenId(item.id);
+      requestFocus(item.id, 'note');
+      return;
+    }
+
+    if (event.key === 'Enter' && mod) {
+      event.preventDefault();
+      toggleDone(item.id);
+      return;
+    }
+
+    // ---- 階層 ----
+    if (event.key === 'Tab' || (mod && (event.key === 'ArrowRight' || event.key === 'ArrowLeft'))) {
+      event.preventDefault();
+      const outdent = event.shiftKey || event.key === 'ArrowLeft';
+      if (outdent) taskStore.outdent(item.id);
+      else taskStore.indent(item.id);
+      requestFocus(item.id, 'title', caret);
+      return;
+    }
+
+    // ---- 並べ替え ----
+    if (mod && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+      event.preventDefault();
+      taskStore.move(item.id, event.key === 'ArrowUp' ? -1 : 1);
+      requestFocus(item.id, 'title', caret);
+      return;
+    }
+
+    // ---- 行末から右へ抜けるとメタ欄（種別 / today / 期限 / 削除）へ ----
+    if (event.key === 'ArrowRight' && !mod && !event.altKey && !event.shiftKey) {
+      const atEnd = caret === el.value.length && el.selectionEnd === el.value.length;
+      if (atEnd && focusFirstMeta(el.closest('.row'))) event.preventDefault();
+      return;
+    }
+
+    // ---- 行間の移動 ----
+    if (event.key === 'ArrowUp') {
+      if (moveFocus(item.id, -1)) event.preventDefault();
+      return;
+    }
+    if (event.key === 'ArrowDown') {
+      if (moveFocus(item.id, 1)) event.preventDefault();
+      return;
+    }
+
+    // ---- 削除 ----
+    if (event.key === 'Backspace') {
+      const isEmptyLeaf =
+        item.text.length === 0 &&
+        !item.note &&
+        !allRows.some((r) => r.item.parentId === item.id);
+      if (mod || (isEmptyLeaf && caret === 0)) {
+        event.preventDefault();
+        removeRow(item.id);
+      }
+      return;
+    }
+
+    // ---- 属性（macOS のブラウザに取られない ⌥ 側に寄せている） ----
+    if (event.altKey && !mod) {
+      if (event.code === 'KeyT' && item.type === 'task') {
+        event.preventDefault();
+        taskStore.toggleToday(item.id, todayDate);
+        return;
+      }
+      if (event.code === 'KeyE' && item.type === 'task') {
+        event.preventDefault();
+        handleEstimateEditingChange(item.id, true);
+        return;
+      }
+      // タスクならクエスト種別、ラベルなら色を順に切り替える
+      if (event.code === 'KeyM') {
+        event.preventDefault();
+        taskStore.cycleKind(item.id);
+        return;
+      }
+      if (event.code === 'KeyS') {
+        event.preventDefault();
+        requestFocus(taskStore.insertAfter(item.id, { type: 'section' }));
+        return;
+      }
+    }
+
+    if (mod && event.code === 'KeyZ') {
+      event.preventDefault();
+      taskStore.undo();
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      // activeId は残しておく。矢印でここから再開できる
+      el.blur();
+    }
+  };
+
+  const handleNoteKeyDown = (
+    event: React.KeyboardEvent<HTMLTextAreaElement>,
+    item: Item
+  ) => {
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+    const el = event.currentTarget;
+    const mod = event.metaKey || event.ctrlKey;
+
+    if (event.key === 'Escape' || (event.key === 'Enter' && mod)) {
+      event.preventDefault();
+      if (!el.value.trim()) setNoteOpenId(null);
+      requestFocus(item.id, 'title');
+      return;
+    }
+
+    if (event.key === 'Backspace' && el.value.length === 0) {
+      event.preventDefault();
+      setNoteOpenId(null);
+      requestFocus(item.id, 'title');
+      return;
+    }
+
+    if (event.key === 'ArrowUp' && el.selectionStart === 0) {
+      event.preventDefault();
+      requestFocus(item.id, 'title');
+    }
+  };
+
+  const registerTitle = useCallback((id: string, el: HTMLTextAreaElement | null) => {
+    if (el) titleRefs.current.set(id, el);
+    else titleRefs.current.delete(id);
+  }, []);
+
+  const registerNote = useCallback((id: string, el: HTMLTextAreaElement | null) => {
+    if (el) noteRefs.current.set(id, el);
+    else noteRefs.current.delete(id);
+  }, []);
+
+  const renderRow = (row: Row) => (
+    <TaskRow
+      key={row.item.id}
+      item={row.item}
+      depth={row.depth}
+      todayDate={todayDate}
+      todayNumber={view === 'today' ? todayNumbers.get(row.item.id) : undefined}
+      burstIndex={burstOrder.get(row.item.id)}
+      isActive={activeId === row.item.id}
+      noteOpen={noteOpenId === row.item.id}
+      estimateEditing={estimateEditId === row.item.id}
+      colorOpen={colorOpenId === row.item.id}
+      registerTitle={registerTitle}
+      registerNote={registerNote}
+      onKeyDown={handleTitleKeyDown}
+      onNoteKeyDown={handleNoteKeyDown}
+      onFocusRow={setActiveId}
+      onTextChange={taskStore.setText}
+      onNoteChange={taskStore.setNote}
+      onToggleDone={toggleDone}
+      onToggleToday={(id) => taskStore.toggleToday(id, todayDate)}
+      onCycleKind={taskStore.cycleKind}
+      onSetEstimate={taskStore.setEstimate}
+      onEstimateEditingChange={handleEstimateEditingChange}
+      onColorOpenChange={handleColorOpenChange}
+      onRemove={removeRow}
+      onTitleBlur={handleTitleBlur}
+      onSetLabelColor={setLabelColor}
+    />
+  );
 
   return (
     <section className="page">
-      <div className="page-header">
-        <h1 className="page-title">tasks</h1>
-      </div>
+      <div className="tasks-toolbar">
+        <div className="view-switch" role="tablist" aria-label="表示">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === 'all'}
+            className={`view-switch-btn${view === 'all' ? ' active' : ''}`}
+            onClick={() => setViewMode('all')}
+            title="⌥1"
+          >
+            all
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === 'today'}
+            className={`view-switch-btn${view === 'today' ? ' active' : ''}`}
+            onClick={() => setViewMode('today')}
+            title="⌥2"
+          >
+            today
+            <span className="view-switch-count">{todayNumbers.size}</span>
+          </button>
+        </div>
 
-      <SignedOut>
-        <div className="notice">サインインするとタスクを保存できます。</div>
-      </SignedOut>
-
-      <SignedIn>
-        <TaskList />
-      </SignedIn>
-    </section>
-  );
-}
-
-function TaskList() {
-  const rows = useQuery(api.taskList.list);
-  const bootstrap = useMutation(api.taskList.bootstrapIfNeeded);
-  const addTask = useMutation(api.taskList.addTask);
-  const addSection = useMutation(api.taskList.addSection);
-  const clearCompleted = useMutation(api.taskList.clearCompleted);
-
-  const reorderEntries = useMutation(api.taskList.reorderEntries).withOptimisticUpdate(
-    (localStore, { orderedEntryIds }) => {
-      const cur = localStore.getQuery(api.taskList.list, {});
-      if (!cur) return;
-      const byId = new Map(cur.map((r) => [r.entryId, r]));
-      const next: ListRow[] = [];
-      for (const id of orderedEntryIds) {
-        const r = byId.get(id);
-        if (r) next.push(r);
-      }
-      localStore.setQuery(api.taskList.list, {}, next);
-    }
-  );
-
-  useEffect(() => {
-    if (rows !== undefined) {
-      void bootstrap({});
-    }
-  }, [rows, bootstrap]);
-
-  const [draft, setDraft] = useState('');
-  const [nowAt] = useState(() => floorToMinute(Date.now()));
-
-  const firstSectionEntryId = useMemo(
-    () => rows?.find((r) => r.kind === 'section')?.entryId,
-    [rows]
-  );
-
-  const submit = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    const text = draft.trim();
-    if (!text) return;
-    setDraft('');
-    await addTask({ text, insertBeforeEntryId: firstSectionEntryId });
-  };
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
-
-  const entryIds = useMemo(() => rows?.map((r) => r.entryId) ?? [], [rows]);
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || !rows) return;
-    const a = String(active.id);
-    const o = String(over.id);
-    if (a === o) return;
-    const oldIndex = entryIds.indexOf(a as Id<'taskListEntries'>);
-    const newIndex = entryIds.indexOf(o as Id<'taskListEntries'>);
-    if (oldIndex < 0 || newIndex < 0) return;
-    void reorderEntries({
-      orderedEntryIds: arrayMove(entryIds, oldIndex, newIndex),
-    });
-  };
-
-  const tasksInList = useMemo(
-    () => (rows ?? []).filter((r): r is Extract<ListRow, { kind: 'task' }> => r.kind === 'task'),
-    [rows]
-  );
-  const todayTaskNumberByEntryId = useMemo(() => {
-    const numbers = new Map<Id<'taskListEntries'>, number>();
-    if (!rows) return numbers;
-    let nextNumber = 1;
-    for (const row of rows) {
-      if (row.kind === 'section') break;
-      numbers.set(row.entryId, nextNumber++);
-    }
-    return numbers;
-  }, [rows]);
-  const scheduleHintsByEntryId = useMemo(() => {
-    const hints = new Map<Id<'taskListEntries'>, ScheduleHints>();
-    if (!rows) return hints;
-
-    let previousEndAt: number | undefined;
-    for (const row of rows) {
-      if (row.kind === 'section') break;
-      hints.set(row.entryId, { previousEndAt });
-      const startAt = row.task.scheduleStartAt ?? legacyScheduleAt(row.task.scheduleStart, nowAt);
-      previousEndAt = row.task.scheduleEndAt ?? legacyScheduleEndAt(row.task.scheduleEnd, startAt, nowAt) ?? previousEndAt;
-    }
-    return hints;
-  }, [nowAt, rows]);
-  const timelineItems = useMemo(() => {
-    if (!rows) return [];
-
-    const items: TimelineItem[] = [];
-    let nextNumber = 1;
-    for (const row of rows) {
-      if (row.kind === 'section') break;
-
-      const startAt = row.task.scheduleStartAt ?? legacyScheduleAt(row.task.scheduleStart, nowAt);
-      const endAt = row.task.scheduleEndAt ?? legacyScheduleEndAt(row.task.scheduleEnd, startAt, nowAt);
-      if (
-        startAt === undefined ||
-        endAt === undefined ||
-        endAt <= startAt ||
-        endAt < nowAt - DAY_MS ||
-        startAt > nowAt + DAY_MS
-      ) {
-        nextNumber++;
-        continue;
-      }
-
-      items.push({
-        entryId: row.entryId,
-        number: nextNumber,
-        title: row.task.text,
-        startAt,
-        endAt,
-        done: row.task.done,
-      });
-      nextNumber++;
-    }
-
-    return items;
-  }, [nowAt, rows]);
-  const todayTaskCount = todayTaskNumberByEntryId.size;
-  const remaining = tasksInList.filter((r) => !r.task.done).length;
-  const completed = tasksInList.filter((r) => r.task.done).length;
-
-  const loading = rows === undefined;
-
-  return (
-    <div className="tasks-workspace">
-      <TodayTimeline items={timelineItems} nowAt={nowAt} />
-      <form className="task-input-row" onSubmit={submit}>
         <input
-          className="task-input"
-          placeholder="新しいタスク..."
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          ref={searchRef}
+          className="tasks-search"
+          value={query}
+          placeholder="検索（⌘F）"
+          onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
-            if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              setQuery('');
+              e.currentTarget.blur();
+            }
             if (e.key === 'Enter') {
               e.preventDefault();
-              submit();
+              requestFocus(rows[0]?.item.id);
             }
           }}
+          aria-label="タスクを検索"
         />
-        <button type="submit" className="primary-btn" disabled={!draft.trim()}>
-          add
-        </button>
-      </form>
 
-      {loading ? (
-        <div className="notice muted">loading...</div>
-      ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext items={entryIds} strategy={verticalListSortingStrategy}>
-            <ul className="task-list task-list-unified">
-              <li className="task-today-row">
-                <TodayHeader count={todayTaskCount} />
-              </li>
-              {(rows ?? []).map((row) =>
-                row.kind === 'section' ? (
-                  <SortableSectionRow key={row.entryId} row={row} />
-                ) : (
-                  <SortableTaskItem
-                    key={row.entryId}
-                    task={row.task}
-                    entryId={row.entryId}
-                    todayNumber={todayTaskNumberByEntryId.get(row.entryId)}
-                    scheduleHints={scheduleHintsByEntryId.get(row.entryId)}
-                    nowAt={nowAt}
-                  />
-                )
-              )}
-              {rows.length === 0 && (
-                <li className="task-list-empty muted">タスクはまだありません。</li>
-              )}
-            </ul>
-          </SortableContext>
-
-          <div className="task-add-block-wrap">
-            <button
-              type="button"
-              className="ghost-btn task-add-block-btn"
-              onClick={() => void addSection({})}
-            >
-              + 見出しを追加
-            </button>
-          </div>
-        </DndContext>
-      )}
-
-      {tasksInList.length > 0 && (
-        <div className="task-footer">
-          <span className="muted">
-            {remaining} 件残り / {completed} 件完了
-          </span>
-          {completed > 0 && (
-            <button type="button" className="ghost-btn" onClick={() => clearCompleted({})}>
-              完了を削除
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SortableTaskItem({
-  task,
-  entryId,
-  todayNumber,
-  scheduleHints,
-  nowAt,
-}: {
-  task: Task;
-  entryId: Id<'taskListEntries'>;
-  todayNumber?: number;
-  scheduleHints?: ScheduleHints;
-  nowAt: number;
-}) {
-  const toggle = useMutation(api.tasks.toggle);
-  const removeEntry = useMutation(api.taskList.removeEntry);
-  const setKind = useMutation(api.tasks.setKind);
-  const updateText = useMutation(api.tasks.updateText);
-  const updateSummary = useMutation(api.tasks.updateSummary);
-
-  const [isEditing, setIsEditing] = useState(false);
-  const [draft, setDraft] = useState(task.text);
-  const [summaryDraft, setSummaryDraft] = useState(task.summary ?? '');
-  const [summaryFieldVisible, setSummaryFieldVisible] = useState(false);
-  const summaryTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const editStackRef = useRef<HTMLDivElement | null>(null);
-  const editModeRef = useRef(false);
-
-  const startEdit = () => {
-    editModeRef.current = true;
-    setDraft(task.text);
-    setSummaryDraft(task.summary ?? '');
-    setSummaryFieldVisible(!!task.summary?.trim());
-    setIsEditing(true);
-  };
-
-  const cancelEdit = useCallback(() => {
-    editModeRef.current = false;
-    setDraft(task.text);
-    setSummaryDraft(task.summary ?? '');
-    setSummaryFieldVisible(false);
-    setIsEditing(false);
-  }, [task.summary, task.text]);
-
-  const commitAll = useCallback(() => {
-    if (!editModeRef.current) return;
-    editModeRef.current = false;
-    setSummaryFieldVisible(false);
-
-    const titleTrim = draft.trim();
-    if (titleTrim && titleTrim !== task.text) {
-      updateText({ id: task._id as Id<'tasks'>, text: titleTrim });
-    }
-    const prevSum = (task.summary ?? '').trim();
-    const nextSum = summaryDraft.trim();
-    if (nextSum !== prevSum) {
-      void updateSummary({ id: task._id as Id<'tasks'>, summary: summaryDraft });
-    }
-    setIsEditing(false);
-  }, [draft, summaryDraft, task._id, task.summary, task.text, updateText, updateSummary]);
-
-  const handleEditStackBlur = useCallback(() => {
-    requestAnimationFrame(() => {
-      if (!editModeRef.current) return;
-      const stack = editStackRef.current;
-      if (stack?.contains(document.activeElement)) return;
-      commitAll();
-    });
-  }, [commitAll]);
-
-  useEffect(() => {
-    if (!isEditing || !summaryFieldVisible) return;
-    summaryTextareaRef.current?.focus();
-  }, [isEditing, summaryFieldVisible]);
-
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: entryId, disabled: isEditing });
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 10 : undefined,
-  };
-
-  const openTextOrSummary = () => {
-    startEdit();
-  };
-
-  const isTitleOnlyRow =
-    (!isEditing && !task.summary?.trim()) || (isEditing && !summaryFieldVisible);
-
-  return (
-    <li
-      ref={setNodeRef}
-      style={style}
-      className={`task-item ${task.done ? 'done' : ''} ${isDragging ? 'dragging' : ''}`}
-    >
-        <div className={`task-item-top${isTitleOnlyRow ? ' task-item-top--vcenter' : ''}`}>
         <button
           type="button"
-          className={`check-btn ${task.done ? 'checked' : ''} ${todayNumber ? 'numbered' : ''}`}
-          onClick={() => toggle({ id: task._id as Id<'tasks'> })}
-          aria-label={
-            task.done
-              ? '未完了に戻す'
-              : todayNumber
-                ? `Today task ${todayNumber}を完了`
-                : '完了'
-          }
+          className="ghost-btn tasks-help-btn"
+          onClick={() => setHelpOpen(true)}
+          title="⌘/"
+          aria-label="キーボードショートカット"
         >
-          {task.done ? <Check size={14} strokeWidth={3} /> : todayNumber}
-        </button>
-        <QuestIcon
-          kind={task.kind}
-          onCycle={() =>
-            setKind({ id: task._id as Id<'tasks'>, kind: nextKind(task.kind) })
-          }
-        />
-        <div className="task-item-text-stack">
-          {isEditing ? (
-            <div ref={editStackRef} className="task-edit-stack">
-              <input
-                autoFocus
-                className="task-text-input"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onFocus={(e) => e.currentTarget.select()}
-                onBlur={handleEditStackBlur}
-                onKeyDown={(e) => {
-                  if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-                  if (e.key === 'Escape') {
-                    e.preventDefault();
-                    cancelEdit();
-                    return;
-                  }
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                    e.preventDefault();
-                    commitAll();
-                    return;
-                  }
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    setSummaryFieldVisible(true);
-                  }
-                }}
-              />
-              {summaryFieldVisible ? (
-              <textarea
-                ref={summaryTextareaRef}
-                className="task-summary-input task-summary-input-edit"
-                placeholder="概要・メモ（改行可／⌘+Enter または Ctrl+Enter で保存）"
-                value={summaryDraft}
-                onChange={(e) => setSummaryDraft(e.target.value)}
-                onBlur={handleEditStackBlur}
-                rows={3}
-                aria-label="タスクの概要"
-                onKeyDown={(e) => {
-                  if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-                  if (e.key === 'Escape') {
-                    e.preventDefault();
-                    cancelEdit();
-                    return;
-                  }
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                    e.preventDefault();
-                    commitAll();
-                  }
-                }}
-              />
-              ) : null}
-            </div>
-          ) : (
-            <div
-              className="task-readonly-stack"
-              onClick={openTextOrSummary}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  startEdit();
-                }
-              }}
-              role="button"
-              tabIndex={0}
-            >
-              <span className="task-text task-text-readonly">{task.text}</span>
-              {task.summary?.trim() ? (
-                <p className="task-summary-display">{task.summary}</p>
-              ) : null}
-            </div>
-          )}
-        </div>
-        {todayNumber ? (
-          <TaskScheduleEditor
-            task={task}
-            hints={scheduleHints ?? {}}
-            nowAt={nowAt}
-          />
-        ) : null}
-        <button
-          type="button"
-          className="icon-btn drag-handle"
-          aria-label="並び替え"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical size={16} />
-        </button>
-        <button
-          type="button"
-          className="icon-btn"
-          onClick={() => removeEntry({ entryId })}
-          aria-label="削除"
-        >
-          <Trash2 size={16} />
+          ?
         </button>
       </div>
-    </li>
+
+      <ul className="row-list">{activeRows.map(renderRow)}</ul>
+
+      {activeRows.length === 0 ? (
+        <p className="muted row-list-empty">
+          {query
+            ? '一致するタスクはありません。'
+            : view === 'today'
+              ? '⌥T で today に入れると、ここに並びます。'
+              : 'Enter で新しい行を作れます。'}
+        </p>
+      ) : null}
+
+      {view === 'today' && todayCleared ? (
+        <p className="today-cleared">today は全部完了</p>
+      ) : null}
+
+      <div className="tasks-footer">
+        <div className="tasks-footer-top">
+          <span className="muted tasks-count">
+            <b>{stats.remaining}</b> 残り
+            {stats.remainingMinutes > 0 ? (
+              <>
+                {' · '}
+                <b title="残っているタスクの作業想定時間の合計">
+                  {formatEstimate(stats.remainingMinutes)}
+                </b>
+              </>
+            ) : null}
+          </span>
+          <div className="tasks-footer-actions">
+            <button
+              type="button"
+              className="ghost-btn"
+              onClick={() =>
+                requestFocus(
+                  taskStore.insertAfter(activeRows[activeRows.length - 1]?.item.id ?? null, {
+                    type: 'section',
+                  })
+                )
+              }
+            >
+              + ラベル（⌥S）
+            </button>
+            {stats.fileable > 0 ? (
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => taskStore.fileCompleted()}
+                title="完了したタスクを完了済みへ移す（⌥C）"
+              >
+                完了を整理
+              </button>
+            ) : null}
+            {stats.completed > 0 ? (
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => taskStore.clearCompleted()}
+                title="完了したタスクを削除（⌥⇧C）"
+              >
+                完了を削除
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <ul className="tasks-legend" aria-label="キーボードの手引き">
+          {FOOTER_SHORTCUTS.map((shortcut) => (
+            <li key={`${shortcut.keys}-${shortcut.label}`} className="tasks-legend-item">
+              <kbd>{shortcut.keys}</kbd>
+              <span>{shortcut.label}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {doneCount > 0 ? (
+        <section className={`done-shelf${shelfOpen ? ' is-open' : ''}`}>
+          <div className="done-shelf-head">
+            <button
+              type="button"
+              className="done-shelf-toggle"
+              onClick={() => setCompletedOpen((open) => !open)}
+              aria-expanded={shelfOpen}
+            >
+              <ChevronRight size={14} className="done-shelf-caret" aria-hidden />
+              <span>完了済み</span>
+              <span className="done-shelf-count">{doneCount}</span>
+            </button>
+          </div>
+          {shelfOpen ? (
+            <ul className="row-list done-shelf-list">{doneRows.map(renderRow)}</ul>
+          ) : null}
+        </section>
+      ) : null}
+
+      {helpOpen ? <KeyboardHelp onClose={() => setHelpOpen(false)} /> : null}
+    </section>
   );
 }

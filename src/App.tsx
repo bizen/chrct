@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { AppHeaderAuth } from './components/AppHeaderAuth';
 import { Mascot } from './components/Mascot';
 import { SplashScreen } from './components/SplashScreen';
+import { SyncBridge } from './components/SyncBridge';
 import { isCloudConfigured } from './lib/cloudConfig';
 import { CountPage } from './pages/CountPage';
 import { TasksPage } from './pages/TasksPage';
@@ -10,8 +11,26 @@ import { TasksPage } from './pages/TasksPage';
 const SPLASH_VISIBLE_MS = 1100;
 const SPLASH_FADE_MS = 450;
 
+/** ⌘K / Ctrl+K で tasks と count を行き来する */
+function usePageSwitchShortcut() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (!(event.metaKey || event.ctrlKey) || event.code !== 'KeyK') return;
+      event.preventDefault();
+      navigate(location.pathname.startsWith('/count') ? '/' : '/count');
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [navigate, location.pathname]);
+}
+
 export default function App() {
   const [splashState, setSplashState] = useState<'visible' | 'fading' | 'gone'>('visible');
+  usePageSwitchShortcut();
 
   useEffect(() => {
     const fadeTimer = setTimeout(() => setSplashState('fading'), SPLASH_VISIBLE_MS);
@@ -29,16 +48,18 @@ export default function App() {
     <>
       {splashState !== 'gone' && <SplashScreen fadingOut={splashState === 'fading'} />}
 
+      <SyncBridge />
+
       <div className="app-shell">
         <header className="app-header">
           <div className="brand">chrct</div>
           <div className="app-header-end">
             <nav className="app-nav">
+              <NavLink to="/" end className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+                tasks
+              </NavLink>
               <NavLink to="/count" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
                 count
-              </NavLink>
-              <NavLink to="/tasks" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-                tasks
               </NavLink>
             </nav>
             {isCloudConfigured ? (
@@ -51,10 +72,11 @@ export default function App() {
 
         <main className="app-main">
           <Routes>
-            <Route path="/" element={<Navigate to="/count" replace />} />
+            <Route path="/" element={<TasksPage />} />
             <Route path="/count" element={<CountPage />} />
-            <Route path="/tasks" element={<TasksPage />} />
-            <Route path="*" element={<Navigate to="/count" replace />} />
+            <Route path="/tasks/*" element={<Navigate to="/" replace />} />
+            <Route path="/plan/*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
 
