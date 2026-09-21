@@ -38,7 +38,7 @@ function loadShelfOpen(): boolean {
 }
 type Caret = number | 'start' | 'end';
 type FocusTarget = 'title' | 'note';
-type PendingFocus = { id: string; target: FocusTarget; caret: Caret };
+type PendingFocus = { id: string; target: FocusTarget; caret: Caret; misses: number };
 
 /** 日付が変わったら today 表示も追従させる */
 function useTodayDate(): string {
@@ -235,7 +235,7 @@ export function TasksPage() {
   const requestFocus = useCallback(
     (id: string | null | undefined, target: FocusTarget = 'title', caret: Caret = 'end') => {
       if (!id) return;
-      const pending: PendingFocus = { id, target, caret };
+      const pending: PendingFocus = { id, target, caret, misses: 0 };
       pendingFocus.current = applyFocus(pending) ? null : pending;
     },
     [applyFocus]
@@ -244,7 +244,13 @@ export function TasksPage() {
   useLayoutEffect(() => {
     const pending = pendingFocus.current;
     if (!pending) return;
-    if (applyFocus(pending)) pendingFocus.current = null;
+    if (applyFocus(pending)) {
+      pendingFocus.current = null;
+      return;
+    }
+    // 描かれない行を指したままだと、あとで思わぬところへフォーカスが飛ぶ
+    pending.misses += 1;
+    if (pending.misses > 1) pendingFocus.current = null;
   });
 
   // 空っぽのときは最初の1行を用意して、すぐ打ち始められるようにする
@@ -351,6 +357,20 @@ export function TasksPage() {
     taskStore.setLabelColor(id, color);
   }, []);
 
+  /**
+   * ラベルを足す。today 表示はタスクしか描かないので、作ったものが
+   * 見えるように all へ戻してから足す。
+   */
+  const addLabel = useCallback(
+    (anchorId: string | null) => {
+      setView('all');
+      setEstimateEditId(null);
+      setColorOpenId(null);
+      requestFocus(taskStore.insertAfter(anchorId, { type: 'section' }));
+    },
+    [requestFocus]
+  );
+
   const setViewMode = useCallback((next: ViewMode) => {
     setView(next);
     setEstimateEditId(null);
@@ -365,7 +385,8 @@ export function TasksPage() {
    */
   const toggleDone = useCallback((id: string) => {
     const items = taskStore.getState().items;
-    const becomesDone = items[id]?.done === false;
+    // ラベルは done を持たないので、演出も出さない
+    const becomesDone = items[id]?.type === 'task' && items[id]?.done === false;
     taskStore.toggleDone(id);
     if (!becomesDone) return;
 
@@ -600,7 +621,7 @@ export function TasksPage() {
       }
       if (event.code === 'KeyS') {
         event.preventDefault();
-        requestFocus(taskStore.insertAfter(item.id, { type: 'section' }));
+        addLabel(item.id);
         return;
       }
     }
@@ -778,13 +799,7 @@ export function TasksPage() {
             <button
               type="button"
               className="ghost-btn"
-              onClick={() =>
-                requestFocus(
-                  taskStore.insertAfter(activeRows[activeRows.length - 1]?.item.id ?? null, {
-                    type: 'section',
-                  })
-                )
-              }
+              onClick={() => addLabel(activeRows[activeRows.length - 1]?.item.id ?? null)}
             >
               + ラベル（⌥S）
             </button>

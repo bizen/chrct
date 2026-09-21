@@ -23,41 +23,11 @@ export function EstimateField({
   onChipKeyDown?: (e: React.KeyboardEvent<HTMLButtonElement>) => void;
   onChipFocus?: () => void;
 }) {
-  const draftRef = useRef<HTMLInputElement | null>(null);
   const label = formatEstimate(estimate);
-
-  const commit = () => {
-    const parsed = parseEstimate(draftRef.current?.value ?? '');
-    // 読めない入力は捨てて、いまの値のままにする
-    if (parsed !== null) onSave(parsed);
-    onEditingChange(false);
-  };
 
   if (isEditing) {
     return (
-      <input
-        ref={draftRef}
-        autoFocus
-        className="estimate-input"
-        defaultValue={estimateInputValue(estimate)}
-        placeholder="30 / 1.5h"
-        aria-label="作業想定時間（30 / 45m / 1.5h / 1h30）"
-        onFocus={(e) => e.currentTarget.select()}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            commit();
-            return;
-          }
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            e.stopPropagation();
-            onEditingChange(false);
-          }
-        }}
-      />
+      <EstimateInput estimate={estimate} onSave={onSave} onClose={() => onEditingChange(false)} />
     );
   }
 
@@ -75,5 +45,59 @@ export function EstimateField({
     >
       {label || '–'}
     </button>
+  );
+}
+
+/**
+ * 編集中だけマウントされる。
+ *
+ * 閉じると呼び出し側が同期的にフォーカスを戻すので、そのとき blur が先に走る。
+ * Esc で閉じたのに blur の保存が動いてしまわないよう、一度きりの締めにしている。
+ */
+function EstimateInput({
+  estimate,
+  onSave,
+  onClose,
+}: {
+  estimate?: number;
+  onSave: (estimate: number | undefined) => void;
+  onClose: () => void;
+}) {
+  const finished = useRef(false);
+
+  const finish = (save: boolean, el: HTMLInputElement | null) => {
+    if (finished.current) return;
+    finished.current = true;
+    if (save && el) {
+      const parsed = parseEstimate(el.value);
+      // 読めない入力は捨てて、いまの値のままにする
+      if (parsed !== null) onSave(parsed);
+    }
+    onClose();
+  };
+
+  return (
+    <input
+      autoFocus
+      className="estimate-input"
+      defaultValue={estimateInputValue(estimate)}
+      placeholder="30 / 1.5h"
+      aria-label="作業想定時間（30 / 45m / 1.5h / 1h30）"
+      onFocus={(e) => e.currentTarget.select()}
+      onBlur={(e) => finish(true, e.currentTarget)}
+      onKeyDown={(e) => {
+        if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          finish(true, e.currentTarget);
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          finish(false, null);
+        }
+      }}
+    />
   );
 }

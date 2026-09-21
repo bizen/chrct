@@ -7,6 +7,8 @@ import type { Item } from '../lib/taskModel';
 import { taskStore, useTaskState } from '../lib/taskStore';
 
 const PUSH_DELAY_MS = 700;
+const IMPORT_RETRY_DELAY_MS = 3000;
+const IMPORT_RETRY_LIMIT = 3;
 
 type SyncMap = Record<string, number>;
 
@@ -66,6 +68,7 @@ function SyncBridgeInner() {
   const loadedForUser = useRef<string | null>(null);
   const importedForUser = useRef<string | null>(null);
   const [tick, setTick] = useState(0);
+  const [importAttempt, setImportAttempt] = useState(0);
 
   // どこまで送受信済みかの台帳をユーザーごとに読み込む
   useEffect(() => {
@@ -74,14 +77,16 @@ function SyncBridgeInner() {
     syncMapRef.current = loadSyncMap(userId);
   }, [enabled, userId]);
 
-  // 旧スキーマのタスクを一度だけ引き取る
+  // 旧スキーマのタスクを一度だけ引き取る。失敗したら少し待って数回やり直す
   useEffect(() => {
     if (!enabled || !userId || importedForUser.current === userId) return;
     importedForUser.current = userId;
     void importLegacy({}).catch(() => {
       importedForUser.current = null;
+      if (importAttempt >= IMPORT_RETRY_LIMIT) return;
+      setTimeout(() => setImportAttempt((count) => count + 1), IMPORT_RETRY_DELAY_MS);
     });
-  }, [enabled, userId, importLegacy]);
+  }, [enabled, userId, importLegacy, importAttempt]);
 
   // リモート → ローカル
   useEffect(() => {

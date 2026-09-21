@@ -25,6 +25,8 @@ import {
 
 const STORAGE_KEY = 'chrct.tasks.v2';
 const UNDO_LIMIT = 50;
+/** これだけ手が止まったら、次の打鍵から新しい取り消し単位にする */
+const COALESCE_MS = 600;
 
 export interface TaskState {
   items: ItemMap;
@@ -130,13 +132,30 @@ if (typeof window !== 'undefined') {
 let state: TaskState = { items: loadItems(), rev: 0 };
 const listeners = new Set<() => void>();
 const undoStack: ItemMap[] = [];
+/** 直前にまとめた編集。打ち続けている間は履歴を増やさない */
+let lastCoalesced: { key: string; at: number } | null = null;
 
 function emit() {
   for (const listener of listeners) listener();
 }
 
-function commit(nextItems: ItemMap, options?: { undoable?: boolean; previous?: ItemMap }) {
-  if (options?.undoable !== false) {
+function commit(
+  nextItems: ItemMap,
+  options?: { undoable?: boolean; previous?: ItemMap; coalesceKey?: string }
+) {
+  let undoable = options?.undoable !== false;
+
+  if (undoable && options?.coalesceKey) {
+    // 同じ行を打ち続けている間はひとまとめ。手が止まったら次の区切りにする
+    const now = Date.now();
+    const key = options.coalesceKey;
+    if (lastCoalesced?.key === key && now - lastCoalesced.at < COALESCE_MS) undoable = false;
+    lastCoalesced = { key, at: now };
+  } else {
+    lastCoalesced = null;
+  }
+
+  if (undoable) {
     undoStack.push(options?.previous ?? state.items);
     if (undoStack.length > UNDO_LIMIT) undoStack.shift();
   }
@@ -145,9 +164,42 @@ function commit(nextItems: ItemMap, options?: { undoable?: boolean; previous?: I
   emit();
 }
 
+/**
+ * 変更の時刻。
+ *
+ * Date.now() をそのまま使うと、同じミリ秒に2回変更したときに updatedAt が
+ * 並び、同期先が後の変更を「古い」と見なして弾いてしまう。必ず1つ進める。
+ */
+let lastStamp = 0;
+
+function nextStamp(): number {
+  const now = Date.now();
+  lastStamp = now > lastStamp ? now : lastStamp + 1;
+  return lastStamp;
+}
+
+/** updatedAt を除いた中身が同じか */
+function sameContent(a: Item, b: Item): boolean {
+  return (
+    a.type === b.type &&
+    a.parentId === b.parentId &&
+    a.order === b.order &&
+    a.text === b.text &&
+    a.note === b.note &&
+    a.done === b.done &&
+    a.filed === b.filed &&
+    a.kind === b.kind &&
+    a.color === b.color &&
+    a.estimate === b.estimate &&
+    a.assignedDate === b.assignedDate &&
+    a.createdAt === b.createdAt &&
+    a.deletedAt === b.deletedAt
+  );
+}
+
 /** 変更対象に updatedAt を打ちながら新しい items を作る */
 function withPatches(patches: Item[], base: ItemMap = state.items): ItemMap {
-  const now = Date.now();
+  const now = nextStamp();
   const next: ItemMap = { ...base };
   for (const patch of patches) {
     next[patch.id] = { ...patch, updatedAt: now };
@@ -220,11 +272,34 @@ export const taskStore = {
     return undoStack.length > 0;
   },
 
+  /**
+   * ひとつ前の状態に戻す。
+   *
+   * 単に古いスナップショットを入れ直すと updatedAt まで巻き戻り、同期先が
+   * 「自分のほうが新しい」と押し返して取り消しが無かったことになる。
+   * そこで、戻した項目には「いま」の時刻を打ち直す。
+   * 取り消しで無かったことになる項目は、消した印を付けて同期にも伝える。
+   */
   undo(): void {
     const previous = undoStack.pop();
     if (!previous) return;
-    state = { items: previous, rev: state.rev + 1 };
-    persist(previous);
+    lastCoalesced = null;
+
+    const now = nextStamp();
+    const next: ItemMap = {};
+
+    for (const item of Object.values(previous)) {
+      const current = state.items[item.id];
+      next[item.id] =
+        current && sameContent(current, item) ? current : { ...item, updatedAt: now };
+    }
+    for (const item of Object.values(state.items)) {
+      if (next[item.id]) continue;
+      next[item.id] = { ...item, deletedAt: now, updatedAt: now };
+    }
+
+    state = { items: next, rev: state.rev + 1 };
+    persist(next);
     emit();
   },
 
@@ -286,8 +361,7 @@ export const taskStore = {
   setText(id: string, text: string): void {
     const current = state.items[id];
     if (!isLive(current) || current.text === text) return;
-    // 連続タイプでアンドゥ履歴を埋めない
-    commit(withPatches([{ ...current, text }]), { undoable: false });
+    commit(withPatches([{ ...current, text }]), { coalesceKey: `text:${id}` });
   },
 
   setNote(id: string, note: string): void {
@@ -295,7 +369,7 @@ export const taskStore = {
     if (!isLive(current)) return;
     const trimmed = note.trim() ? note : undefined;
     if (current.note === trimmed) return;
-    commit(withPatches([{ ...current, note: trimmed }]), { undoable: false });
+    commit(withPatches([{ ...current, note: trimmed }]), { coalesceKey: `note:${id}` });
   },
 
   toggleDone(id: string): void {
@@ -396,21 +470,33 @@ export const taskStore = {
     return true;
   },
 
+  /**
+   * 完了したタスクを削除する。
+   * 消すのは完了しているものだけ。未完了のまま残る子は、宙に浮かないよう
+   * ルートの末尾へ引き取る。
+   */
   clearCompleted(): void {
+    const items = state.items;
     const now = Date.now();
-    const roots = flattenAll(state.items)
-      .filter((row) => row.item.type === 'task' && row.item.done)
-      .map((row) => row.item.id);
 
-    const ids = new Set<string>();
-    for (const rootId of roots) {
-      for (const id of subtreeIds(state.items, rootId)) ids.add(id);
+    const doomed = new Set(
+      Object.values(items)
+        .filter(isLive)
+        .filter((item) => item.type === 'task' && item.done)
+        .map((item) => item.id)
+    );
+    if (doomed.size === 0) return;
+
+    const patches: Item[] = [];
+    for (const id of doomed) patches.push({ ...items[id], deletedAt: now });
+
+    let nextOrder = childrenOf(items, null).reduce((max, i) => Math.max(max, i.order), -1) + 1;
+    for (const item of Object.values(items)) {
+      if (!isLive(item) || doomed.has(item.id)) continue;
+      if (!item.parentId || !doomed.has(item.parentId)) continue;
+      patches.push({ ...item, parentId: null, order: nextOrder++ });
     }
-    const patches = [...ids]
-      .map((id) => state.items[id])
-      .filter(isLive)
-      .map((item) => ({ ...item, deletedAt: now }));
-    if (patches.length === 0) return;
+
     commit(withPatches(patches));
   },
 
@@ -480,10 +566,13 @@ export const taskStore = {
   mergeRemote(remoteItems: RemoteItem[]): { applied: number } {
     let applied = 0;
     const next: ItemMap = { ...state.items };
+    /** こちらに無かった＝他の端末で作られたもの */
+    const arrived: string[] = [];
 
     for (const remote of remoteItems) {
       const local = next[remote.itemId];
       if (local && local.updatedAt >= remote.updatedAt) continue;
+      if (!local) arrived.push(remote.itemId);
 
       if (remote.deletedAt) {
         if (local) {
@@ -504,6 +593,22 @@ export const taskStore = {
     }
 
     if (applied === 0) return { applied: 0 };
+
+    /*
+     * 他の端末から届いたものは、こちらの取り消し履歴の外にある。
+     * 履歴のどの断面にも置いておかないと、undo が「スナップショットに無い＝
+     * 取り消しで無かったことになるもの」と見なして消してしまう。
+     */
+    for (let i = 0; i < undoStack.length; i++) {
+      let snapshot: ItemMap | null = null;
+      for (const id of arrived) {
+        if (undoStack[i][id] || !next[id]) continue;
+        snapshot = snapshot ?? { ...undoStack[i] };
+        snapshot[id] = next[id];
+      }
+      if (snapshot) undoStack[i] = snapshot;
+    }
+
     commit(next, { undoable: false });
     return { applied };
   },
