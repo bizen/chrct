@@ -99,6 +99,35 @@ Windows / Linux では `⌘` を Ctrl、`⌥` を Alt に読み替える。
 - 初回サインイン時に、旧スキーマ（`tasks` / `taskListEntries`）のタスクを
   一度だけ新しいツリーへ取り込む（旧「見出し」はそのままラベルになる）
 
+## MCP（任意）
+
+Claude などの AI から、このタスクリストを読み書きできる。
+
+`/mcp` は Vercel Functions（`api/mcp.ts`）。Clerk の OAuth で人を特定し、
+その userId を Convex の `/mcp/*`（`convex/http.ts`）へ渡す。共有の秘密は
+Authorization ヘッダで送る。Convex の関数の引数に載せると実行ログに残るため。
+書き込み先は `syncItems` なので、開いているブラウザが既存の同期で拾う。
+
+| ツール | 動作 |
+| --- | --- |
+| `list_tasks` | 残っているタスク、ラベル名、id を返す |
+| `add_task` | 1件足す（メモ / 既存ラベル / 想定時間 / 親タスク指定） |
+| `complete_task` | 完了にする（子も一緒）。`done: false` で戻す |
+| `update_task` | 文言・メモ・想定時間を直す |
+
+`add_task` は既存のラベルにしか入れない。無いラベルを指定したときは
+ルートに置いて `label_not_found` で知らせる（勝手にラベルが増えないように）。
+
+必要な環境変数（Convex と Vercel の両方）:
+
+```
+MCP_SHARED_SECRET       両者で共有する秘密
+CLERK_SECRET_KEY        Vercel 側のみ。OAuth トークンの検証に使う
+```
+
+`CONVEX_SITE_URL` は任意。無ければ `VITE_CONVEX_URL` の
+`.convex.cloud` を `.convex.site` に読み替える。
+
 ## スタック
 
 - React 19 + Vite + TypeScript
