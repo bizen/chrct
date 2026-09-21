@@ -125,6 +125,7 @@ http.route({
             note: typeof body.note === "string" ? body.note : undefined,
             estimateMinutes:
                 typeof body.estimateMinutes === "number" ? body.estimateMinutes : undefined,
+            today: typeof body.today === "string" ? body.today : undefined,
         })
     ),
 });

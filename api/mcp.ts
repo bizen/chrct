@@ -140,16 +140,28 @@ const handler = createMcpHandler(
       {
         title: 'Edit a task',
         description:
-          'Change the wording, the note or the estimate of a task that is already in the list.',
+          "Change the wording, the note or the estimate of a task that is already in the list, or put it into (or take it out of) the user's today list.",
         inputSchema: z.object({
           task_id: z.string(),
           text: z.string().optional(),
           note: z.string().optional().describe('Empty string clears the note'),
           estimate_minutes: z.number().int().min(0).optional().describe('0 clears the estimate'),
+          today: z
+            .string()
+            .optional()
+            .describe(
+              "The user's local date as YYYY-MM-DD puts the task into today. Empty string takes it out"
+            ),
         }),
       },
-      ({ task_id, text, note, estimate_minutes }, ctx) =>
-        call(ctx, 'update', { taskId: task_id, text, note, estimateMinutes: estimate_minutes })
+      ({ task_id, text, note, estimate_minutes, today }, ctx) =>
+        call(ctx, 'update', {
+          taskId: task_id,
+          text,
+          note,
+          estimateMinutes: estimate_minutes,
+          today,
+        })
     );
   },
   {

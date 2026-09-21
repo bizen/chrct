@@ -117,6 +117,7 @@ interface TaskView {
     done: boolean;
     label?: string;
     estimate_minutes?: number;
+    today?: string;
     subtasks?: { id: string; text: string; done: boolean }[];
 }
 
@@ -125,6 +126,7 @@ function toView(item: StoredItem, label: string | undefined, subtasks: StoredIte
     if (item.note?.trim()) view.note = item.note;
     if (label) view.label = label;
     if (typeof item.estimate === "number") view.estimate_minutes = item.estimate;
+    if (item.assignedDate) view.today = item.assignedDate;
     if (subtasks.length > 0) {
         view.subtasks = subtasks.map((s) => ({ id: s.id, text: s.text, done: s.done }));
     }
@@ -248,11 +250,17 @@ export const update = internalMutation({
         text: v.optional(v.string()),
         note: v.optional(v.string()),
         estimateMinutes: v.optional(v.number()),
+        today: v.optional(v.string()),
     },
-    handler: async (ctx, { userId, taskId, text, note, estimateMinutes }) => {
+    handler: async (ctx, { userId, taskId, text, note, estimateMinutes, today }) => {
         const items = await loadItems(ctx, userId);
         const target = items.find((i) => i.id === taskId);
         if (!target) throw new ConvexError("task not found");
+        // 「今日」は人のいる場所で決まるので、サーバの時計ではなく呼び手に日付をもらう
+        if (today && !/^\d{4}-\d{2}-\d{2}$/.test(today)) {
+            throw new ConvexError("today must be YYYY-MM-DD");
+        }
+        if (today && target.type !== "task") throw new ConvexError("only tasks can go into today");
 
         const next: StoredItem = { ...target, updatedAt: stampAfter(items) };
         if (text !== undefined) {
@@ -263,8 +271,9 @@ export const update = internalMutation({
         if (estimateMinutes !== undefined) {
             next.estimate = estimateMinutes > 0 ? Math.round(estimateMinutes) : undefined;
         }
+        if (today !== undefined) next.assignedDate = today || undefined;
 
         await writeItem(ctx, userId, next);
-        return { id: next.id, text: next.text };
+        return { id: next.id, text: next.text, today: next.assignedDate };
     },
 });

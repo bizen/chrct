@@ -113,7 +113,7 @@ Authorization ヘッダで送る。Convex の関数の引数に載せると実�
 | `list_tasks` | 残っているタスク、ラベル名、id を返す |
 | `add_task` | 1件足す（メモ / 既存ラベル / 想定時間 / 親タスク指定） |
 | `complete_task` | 完了にする（子も一緒）。`done: false` で戻す |
-| `update_task` | 文言・メモ・想定時間を直す |
+| `update_task` | 文言・メモ・想定時間を直す。`today` に日付（YYYY-MM-DD）で today に入れる / 空文字で外す |
 
 `add_task` は既存のラベルにしか入れない。無いラベルを指定したときは
 ルートに置いて `label_not_found` で知らせる（勝手にラベルが増えないように）。
