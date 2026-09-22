@@ -163,6 +163,49 @@ const handler = createMcpHandler(
           today,
         })
     );
+
+    server.registerTool(
+      'add_label',
+      {
+        title: 'Create a label',
+        description:
+          "Create a new label (a group of tasks) at the bottom of the user's list. Only when the user asked for it — labels are theirs to organise.",
+        inputSchema: z.object({
+          name: z.string().describe('The label name, exactly as the user wants it'),
+        }),
+      },
+      ({ name }, ctx) => call(ctx, 'add-label', { name })
+    );
+
+    server.registerTool(
+      'move_task',
+      {
+        title: 'Move a task',
+        description:
+          'Move a task (with its subtasks) under an existing label, or under another task as a subtask. With neither, it goes to the top level. It lands at the end.',
+        inputSchema: z.object({
+          task_id: z.string(),
+          label: z.string().optional().describe('An existing label name from list_tasks'),
+          parent_task_id: z.string().optional().describe('Make it a subtask of this task'),
+        }),
+      },
+      ({ task_id, label, parent_task_id }, ctx) =>
+        call(ctx, 'move', { taskId: task_id, label, parentTaskId: parent_task_id })
+    );
+
+    server.registerTool(
+      'label_to_task',
+      {
+        title: 'Turn a label into a task',
+        description:
+          'Turn an existing label into a task. The tasks that were under it become its subtasks. Optionally put it under another label.',
+        inputSchema: z.object({
+          label: z.string().describe('The label to turn into a task'),
+          into_label: z.string().optional().describe('An existing label to put the new task under'),
+        }),
+      },
+      ({ label, into_label }, ctx) => call(ctx, 'label-to-task', { label, intoLabel: into_label })
+    );
   },
   {
     serverInfo: { name: 'chrct', version: '0.1.0' },

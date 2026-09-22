@@ -277,3 +277,152 @@ export const update = internalMutation({
         return { id: next.id, text: next.text, today: next.assignedDate };
     },
 });
+
+/** クライアントの MAX_DEPTH（src/lib/taskModel.ts）と揃える。ラベルが深さ0 */
+const MAX_DEPTH = 4;
+
+function findLabel(items: StoredItem[], name: string): StoredItem | undefined {
+    const wanted = name.trim().toLowerCase();
+    return items.find((i) => i.type === "section" && i.text.trim().toLowerCase() === wanted);
+}
+
+function depthOf(byId: Map<string, StoredItem>, id: string): number {
+    let depth = 0;
+    let current = byId.get(id);
+    const seen = new Set<string>();
+    while (current?.parentId && byId.has(current.parentId) && !seen.has(current.id)) {
+        seen.add(current.id);
+        current = byId.get(current.parentId);
+        depth++;
+    }
+    return depth;
+}
+
+/** 自分より下に何段あるか。子がなければ0 */
+function subtreeHeight(items: StoredItem[], id: string, seen = new Set<string>()): number {
+    if (seen.has(id)) return 0;
+    seen.add(id);
+    let max = 0;
+    for (const child of childrenOf(items, id)) {
+        max = Math.max(max, 1 + subtreeHeight(items, child.id, seen));
+    }
+    return max;
+}
+
+function isInside(byId: Map<string, StoredItem>, id: string, ancestorId: string): boolean {
+    let current = byId.get(id);
+    const seen = new Set<string>();
+    while (current && !seen.has(current.id)) {
+        if (current.id === ancestorId) return true;
+        seen.add(current.id);
+        current = current.parentId ? byId.get(current.parentId) : undefined;
+    }
+    return false;
+}
+
+export const addLabel = internalMutation({
+    args: { userId: v.string(), name: v.string() },
+    handler: async (ctx, { userId, name }) => {
+        const trimmed = name.trim();
+        if (!trimmed) throw new ConvexError("name is empty");
+
+        const items = await loadItems(ctx, userId);
+        if (findLabel(items, trimmed)) throw new ConvexError("label already exists");
+
+        // ラベルは常にルート直下。いちばん下に足す
+        const now = stampAfter(items);
+        const item: StoredItem = {
+            id: crypto.randomUUID(),
+            type: "section",
+            parentId: null,
+            order: nextOrder(items, null),
+            text: trimmed,
+            done: false,
+            createdAt: now,
+            updatedAt: now,
+        };
+        await writeItem(ctx, userId, item);
+        return { label: item.text };
+    },
+});
+
+/** 移し先を決める。ラベル名かタスク id、どちらも無ければルート */
+function resolveDestination(
+    items: StoredItem[],
+    byId: Map<string, StoredItem>,
+    label: string | undefined,
+    parentTaskId: string | undefined
+): string | null {
+    if (parentTaskId) {
+        const parent = byId.get(parentTaskId);
+        if (!parent || parent.type !== "task") throw new ConvexError("parent task not found");
+        return parent.id;
+    }
+    if (label?.trim()) {
+        const found = findLabel(items, label);
+        if (!found) throw new ConvexError("label not found");
+        return found.id;
+    }
+    return null;
+}
+
+export const move = internalMutation({
+    args: {
+        userId: v.string(),
+        taskId: v.string(),
+        label: v.optional(v.string()),
+        parentTaskId: v.optional(v.string()),
+    },
+    handler: async (ctx, { userId, taskId, label, parentTaskId }) => {
+        const items = await loadItems(ctx, userId);
+        const byId = new Map(items.map((i) => [i.id, i]));
+        const target = byId.get(taskId);
+        if (!target || target.type !== "task") throw new ConvexError("task not found");
+
+        const parent = resolveDestination(items, byId, label, parentTaskId);
+        if (parent && isInside(byId, parent, target.id)) {
+            throw new ConvexError("cannot move a task into itself");
+        }
+        const depth = parent ? depthOf(byId, parent) + 1 : 0;
+        if (depth + subtreeHeight(items, target.id) > MAX_DEPTH) {
+            throw new ConvexError("too deep");
+        }
+
+        await writeItem(ctx, userId, {
+            ...target,
+            parentId: parent,
+            order: nextOrder(items, parent),
+            updatedAt: stampAfter(items),
+        });
+        return { id: target.id, text: target.text, label: label?.trim() || undefined };
+    },
+});
+
+/** ラベルをタスクに変える。中にあったタスクはそのままサブタスクになる */
+export const labelToTask = internalMutation({
+    args: { userId: v.string(), label: v.string(), intoLabel: v.optional(v.string()) },
+    handler: async (ctx, { userId, label, intoLabel }) => {
+        const items = await loadItems(ctx, userId);
+        const byId = new Map(items.map((i) => [i.id, i]));
+        const source = findLabel(items, label);
+        if (!source) throw new ConvexError("label not found");
+
+        const parent = resolveDestination(items, byId, intoLabel, undefined);
+        if (parent === source.id) throw new ConvexError("cannot move a label into itself");
+        const depth = parent ? 1 : 0;
+        if (depth + subtreeHeight(items, source.id) > MAX_DEPTH) {
+            throw new ConvexError("too deep");
+        }
+
+        const next: StoredItem = {
+            ...source,
+            type: "task",
+            parentId: parent,
+            order: nextOrder(items, parent),
+            updatedAt: stampAfter(items),
+        };
+        delete next.color;
+        await writeItem(ctx, userId, next);
+        return { id: next.id, text: next.text, label: intoLabel?.trim() || undefined };
+    },
+});

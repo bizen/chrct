@@ -130,4 +130,40 @@ http.route({
     ),
 });
 
+http.route({
+    path: "/mcp/add-label",
+    method: "POST",
+    handler: route((ctx, body) =>
+        ctx.runMutation(internal.mcpTasks.addLabel, {
+            userId: body.userId as string,
+            name: String(body.name ?? ""),
+        })
+    ),
+});
+
+http.route({
+    path: "/mcp/move",
+    method: "POST",
+    handler: route((ctx, body) =>
+        ctx.runMutation(internal.mcpTasks.move, {
+            userId: body.userId as string,
+            taskId: String(body.taskId ?? ""),
+            label: typeof body.label === "string" ? body.label : undefined,
+            parentTaskId: typeof body.parentTaskId === "string" ? body.parentTaskId : undefined,
+        })
+    ),
+});
+
+http.route({
+    path: "/mcp/label-to-task",
+    method: "POST",
+    handler: route((ctx, body) =>
+        ctx.runMutation(internal.mcpTasks.labelToTask, {
+            userId: body.userId as string,
+            label: String(body.label ?? ""),
+            intoLabel: typeof body.intoLabel === "string" ? body.intoLabel : undefined,
+        })
+    ),
+});
+
 export default http;
