@@ -131,6 +131,24 @@ http.route({
 });
 
 http.route({
+    path: "/mcp/add-many",
+    method: "POST",
+    handler: route((ctx, body) =>
+        ctx.runMutation(internal.mcpTasks.addMany, {
+            userId: body.userId as string,
+            tasks: (Array.isArray(body.tasks) ? body.tasks : []) as {
+                text: string;
+                note?: string;
+                estimateMinutes?: number;
+                subtasks?: { text: string; note?: string; estimateMinutes?: number }[];
+            }[],
+            label: typeof body.label === "string" ? body.label : undefined,
+            parentId: typeof body.parentId === "string" ? body.parentId : undefined,
+        })
+    ),
+});
+
+http.route({
     path: "/mcp/add-label",
     method: "POST",
     handler: route((ctx, body) =>

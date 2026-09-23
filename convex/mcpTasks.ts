@@ -426,3 +426,102 @@ export const labelToTask = internalMutation({
         return { id: next.id, text: next.text, label: intoLabel?.trim() || undefined };
     },
 });
+
+interface NewTask {
+    text: string;
+    note?: string;
+    estimateMinutes?: number;
+    subtasks?: { text: string; note?: string; estimateMinutes?: number }[];
+}
+
+/**
+ * まとめて足す。1件ずつ呼ぶと往復が増えるうえ、並びが呼んだ順に
+ * ならない（同じミリ秒に届くと order の取り合いになる）。
+ */
+export const addMany = internalMutation({
+    args: {
+        userId: v.string(),
+        tasks: v.array(
+            v.object({
+                text: v.string(),
+                note: v.optional(v.string()),
+                estimateMinutes: v.optional(v.number()),
+                subtasks: v.optional(
+                    v.array(
+                        v.object({
+                            text: v.string(),
+                            note: v.optional(v.string()),
+                            estimateMinutes: v.optional(v.number()),
+                        })
+                    )
+                ),
+            })
+        ),
+        label: v.optional(v.string()),
+        parentId: v.optional(v.string()),
+    },
+    handler: async (ctx, { userId, tasks, label, parentId }) => {
+        if (tasks.length === 0) throw new ConvexError("tasks is empty");
+        if (tasks.some((t) => !t.text.trim())) throw new ConvexError("text is empty");
+
+        const items = await loadItems(ctx, userId);
+        const byId = new Map(items.map((i) => [i.id, i]));
+
+        let parent: string | null = null;
+        let labelNotFound: string | undefined;
+
+        if (parentId) {
+            const target = byId.get(parentId);
+            if (!target) throw new ConvexError("parent not found");
+            parent = target.id;
+        } else if (label?.trim()) {
+            const found = findLabel(items, label);
+            if (found) parent = found.id;
+            else labelNotFound = label.trim();
+        }
+
+        const hasSubtasks = tasks.some((t) => t.subtasks?.length);
+        const depth = parent ? depthOf(byId, parent) + 1 : 0;
+        if (depth + (hasSubtasks ? 1 : 0) > MAX_DEPTH) throw new ConvexError("too deep");
+
+        // 並びは呼ばれた順。order と updatedAt を自分で進めて、取り合いを避ける
+        let stamp = stampAfter(items);
+        let order = nextOrder(items, parent);
+        const added: { id: string; text: string }[] = [];
+
+        const write = async (
+            task: { text: string; note?: string; estimateMinutes?: number },
+            itemParent: string | null,
+            itemOrder: number
+        ): Promise<string> => {
+            const item: StoredItem = {
+                id: crypto.randomUUID(),
+                type: "task",
+                parentId: itemParent,
+                order: itemOrder,
+                text: task.text.trim(),
+                done: false,
+                createdAt: stamp,
+                updatedAt: stamp++,
+            };
+            if (task.note?.trim()) item.note = task.note;
+            if (typeof task.estimateMinutes === "number" && task.estimateMinutes > 0) {
+                item.estimate = Math.round(task.estimateMinutes);
+            }
+            await writeItem(ctx, userId, item);
+            added.push({ id: item.id, text: item.text });
+            return item.id;
+        };
+
+        for (const task of tasks) {
+            const id = await write(task, parent, order++);
+            let childOrder = 0;
+            for (const sub of task.subtasks ?? []) {
+                if (!sub.text.trim()) throw new ConvexError("text is empty");
+                await write(sub, id, childOrder++);
+            }
+        }
+
+        return { added, label_not_found: labelNotFound };
+    },
+});

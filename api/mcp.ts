@@ -122,6 +122,49 @@ const handler = createMcpHandler(
     );
 
     server.registerTool(
+      'add_tasks',
+      {
+        title: "Add several tasks at once",
+        description:
+          "Put several tasks into the user's list in one go, in the order given — use this instead of calling add_task again and again. All of them go under the same label (or the same parent task), and each may bring its own subtasks.",
+        inputSchema: z.object({
+          tasks: z
+            .array(
+              z.object({
+                text: z.string().describe('One line, like a task list entry'),
+                note: z.string().optional().describe('Details or context, shown under the task'),
+                estimate_minutes: z.number().int().positive().optional(),
+                subtasks: z.array(z.object({
+            text: z.string(),
+            note: z.string().optional(),
+            estimate_minutes: z.number().int().positive().optional(),
+          })).optional(),
+              })
+            )
+            .min(1)
+            .describe('The tasks, in the order they should appear'),
+          label: z.string().optional().describe('An existing label name from list_tasks'),
+          parent_task_id: z.string().optional().describe('Add them as subtasks of this task'),
+        }),
+      },
+      ({ tasks, label, parent_task_id }, ctx) =>
+        call(ctx, 'add-many', {
+          tasks: tasks.map((t) => ({
+            text: t.text,
+            note: t.note,
+            estimateMinutes: t.estimate_minutes,
+            subtasks: t.subtasks?.map((s) => ({
+              text: s.text,
+              note: s.note,
+              estimateMinutes: s.estimate_minutes,
+            })),
+          })),
+          label,
+          parentId: parent_task_id,
+        })
+    );
+
+    server.registerTool(
       'complete_task',
       {
         title: 'Check off a task',
