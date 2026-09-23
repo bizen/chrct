@@ -427,13 +427,6 @@ export const labelToTask = internalMutation({
     },
 });
 
-interface NewTask {
-    text: string;
-    note?: string;
-    estimateMinutes?: number;
-    subtasks?: { text: string; note?: string; estimateMinutes?: number }[];
-}
-
 /**
  * まとめて足す。1件ずつ呼ぶと往復が増えるうえ、並びが呼んだ順に
  * ならない（同じミリ秒に届くと order の取り合いになる）。
