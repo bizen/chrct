@@ -22,6 +22,15 @@ import {
   subtreeHeight,
   subtreeIds,
 } from './taskModel';
+import {
+  type FieldGroup,
+  changedGroups,
+  coerceStamps,
+  mergeItems,
+  restamp,
+  sameStampedState,
+  withGroups,
+} from './itemMerge';
 
 const STORAGE_KEY = 'chrct.tasks.v2';
 const UNDO_LIMIT = 50;
@@ -66,6 +75,7 @@ function coerceItem(raw: unknown): Item | null {
     createdAt: typeof r.createdAt === 'number' ? r.createdAt : now,
     updatedAt: typeof r.updatedAt === 'number' ? r.updatedAt : now,
     deletedAt: typeof r.deletedAt === 'number' ? r.deletedAt : undefined,
+    stamps: coerceStamps(r.stamps),
   };
 }
 
@@ -169,13 +179,20 @@ function commit(
  *
  * Date.now() をそのまま使うと、同じミリ秒に2回変更したときに updatedAt が
  * 並び、同期先が後の変更を「古い」と見なして弾いてしまう。必ず1つ進める。
+ *
+ * また、これまでに見たどの時刻よりも後にする。この端末の時計が遅れていても、
+ * 他の端末や AI の変更を見てから書いた編集が「古い」と負けないように。
  */
-let lastStamp = 0;
+let lastStamp = Object.values(state.items).reduce((max, item) => Math.max(max, item.updatedAt), 0);
 
 function nextStamp(): number {
   const now = Date.now();
   lastStamp = now > lastStamp ? now : lastStamp + 1;
   return lastStamp;
+}
+
+function observeStamp(stamp: number) {
+  if (stamp > lastStamp) lastStamp = stamp;
 }
 
 /** updatedAt を除いた中身が同じか */
@@ -202,7 +219,7 @@ function withPatches(patches: Item[], base: ItemMap = state.items): ItemMap {
   const now = nextStamp();
   const next: ItemMap = { ...base };
   for (const patch of patches) {
-    next[patch.id] = { ...patch, updatedAt: now };
+    next[patch.id] = restamp(base[patch.id], patch, now);
   }
   return next;
 }
@@ -291,11 +308,11 @@ export const taskStore = {
     for (const item of Object.values(previous)) {
       const current = state.items[item.id];
       next[item.id] =
-        current && sameContent(current, item) ? current : { ...item, updatedAt: now };
+        current && sameContent(current, item) ? current : restamp(current, item, now);
     }
     for (const item of Object.values(state.items)) {
       if (next[item.id]) continue;
-      next[item.id] = { ...item, deletedAt: now, updatedAt: now };
+      next[item.id] = restamp(item, { ...item, deletedAt: now }, now);
     }
 
     state = { items: next, rev: state.rev + 1 };
@@ -562,37 +579,59 @@ export const taskStore = {
     return true;
   },
 
-  /** 同期で受け取った変更をローカルに反映（updatedAt の新しい方が勝つ） */
-  mergeRemote(remoteItems: RemoteItem[]): { applied: number } {
+  /**
+   * 同期で受け取った変更をローカルに反映する。欄ごとに新しい方を採る。
+   * clean は合わせた結果がリモートと同じになったもの（送り直し不要）、
+   * ahead はこちらの方が新しい欄が残ったもの（送り直しが要る）。
+   */
+  mergeRemote(remoteItems: RemoteItem[]): { applied: number; clean: Item[]; ahead: string[] } {
     let applied = 0;
     const next: ItemMap = { ...state.items };
+    const clean: Item[] = [];
+    const ahead: string[] = [];
     /** こちらに無かった＝他の端末で作られたもの */
     const arrived: string[] = [];
+    /** リモートが勝った欄。取り消し履歴にも写す */
+    const won = new Map<string, FieldGroup[]>();
 
     for (const remote of remoteItems) {
-      const local = next[remote.itemId];
-      if (local && local.updatedAt >= remote.updatedAt) continue;
-      if (!local) arrived.push(remote.itemId);
+      observeStamp(remote.updatedAt);
 
-      if (remote.deletedAt) {
-        if (local) {
-          next[remote.itemId] = { ...local, deletedAt: remote.deletedAt, updatedAt: remote.updatedAt };
-          applied += 1;
-        }
+      let incoming: Item | null;
+      try {
+        incoming = coerceItem({
+          ...(JSON.parse(remote.payload) as object),
+          id: remote.itemId,
+          updatedAt: remote.updatedAt,
+          deletedAt: remote.deletedAt,
+        });
+      } catch {
+        incoming = null; // 壊れた payload は捨てる
+      }
+      if (!incoming) continue;
+      for (const stamp of Object.values(incoming.stamps ?? {})) observeStamp(stamp);
+
+      const local = next[remote.itemId];
+      if (!local) {
+        // 消えたものは、こちらに無ければ持ってこない
+        if (incoming.deletedAt) continue;
+        arrived.push(remote.itemId);
+        next[remote.itemId] = incoming;
+        clean.push(incoming);
+        applied += 1;
         continue;
       }
 
-      try {
-        const parsed = coerceItem({ ...(JSON.parse(remote.payload) as object), id: remote.itemId });
-        if (!parsed) continue;
-        next[remote.itemId] = { ...parsed, updatedAt: remote.updatedAt, deletedAt: undefined };
-        applied += 1;
-      } catch {
-        // 壊れた payload は捨てる
-      }
+      const merged = mergeItems(local, incoming);
+      if (sameStampedState(merged, incoming)) clean.push(merged);
+      else ahead.push(merged.id);
+      if (sameStampedState(merged, local)) continue;
+      next[remote.itemId] = merged;
+      won.set(remote.itemId, changedGroups(local, merged));
+      applied += 1;
     }
 
-    if (applied === 0) return { applied: 0 };
+    if (applied === 0) return { applied: 0, clean, ahead };
 
     /*
      * 他の端末から届いたものは、こちらの取り消し履歴の外にある。
@@ -606,11 +645,22 @@ export const taskStore = {
         snapshot = snapshot ?? { ...undoStack[i] };
         snapshot[id] = next[id];
       }
+      /*
+       * 他で変わった欄も同じ。古い断面のまま取り消すと、AI が直した文言などを
+       * 巻き戻してしまう。こちらで触っていない欄だけ入れ替えるので、
+       * 自分の編集の取り消しはそのまま効く。
+       */
+      for (const [id, groups] of won) {
+        const old = (snapshot ?? undoStack[i])[id];
+        if (!old) continue;
+        snapshot = snapshot ?? { ...undoStack[i] };
+        snapshot[id] = withGroups(old, next[id], groups);
+      }
       if (snapshot) undoStack[i] = snapshot;
     }
 
     commit(next, { undoable: false });
-    return { applied };
+    return { applied, clean, ahead };
   },
 
   /** ローカルの全アイテム（削除済みも含む。同期用） */

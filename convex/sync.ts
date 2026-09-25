@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { mergeItems } from "../src/lib/itemMerge";
 
 const syncItemValidator = v.object({
     itemId: v.string(),
@@ -8,7 +9,50 @@ const syncItemValidator = v.object({
     payload: v.string(),
 });
 
-/** サインイン中のユーザーのアイテムを全部返す。ローカルとは updatedAt で突き合わせる */
+interface PayloadItem {
+    updatedAt: number;
+    deletedAt?: number;
+    [key: string]: unknown;
+}
+
+function readPayload(row: {
+    updatedAt: number;
+    deletedAt?: number;
+    payload: string;
+}): PayloadItem | null {
+    try {
+        const raw = JSON.parse(row.payload) as unknown;
+        if (typeof raw !== "object" || raw === null) return null;
+        // 行の updatedAt / deletedAt を正とする。payload の中の値は古いことがある
+        const item: PayloadItem = { ...(raw as object), updatedAt: row.updatedAt };
+        if (row.deletedAt) item.deletedAt = row.deletedAt;
+        else delete item.deletedAt;
+        return item;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * 既にある行と、送られてきた行を欄ごとに合わせる（src/lib/itemMerge.ts）。
+ * 行ごとに新しい方を採ると、別々の欄への同時の変更が黙って消えるため。
+ */
+function mergeRows(
+    existing: { updatedAt: number; deletedAt?: number; payload: string },
+    incoming: { updatedAt: number; deletedAt?: number; payload: string }
+): { updatedAt: number; deletedAt: number | undefined; payload: string } | null {
+    const a = readPayload(existing);
+    const b = readPayload(incoming);
+    if (!a || !b) return null;
+    const merged = mergeItems(a, b);
+    return {
+        updatedAt: merged.updatedAt,
+        deletedAt: merged.deletedAt,
+        payload: JSON.stringify(merged),
+    };
+}
+
+/** サインイン中のユーザーのアイテムを全部返す。ローカルとは欄ごとに突き合わせる */
 export const pull = query({
     args: {},
     handler: async (ctx) => {
@@ -29,7 +73,7 @@ export const pull = query({
     },
 });
 
-/** ローカルで更新された分を送る。updatedAt が新しい方を採用する */
+/** ローカルで更新された分を送る。既にある行とは欄ごとに新しい方を採る */
 export const push = mutation({
     args: { items: v.array(syncItemValidator) },
     handler: async (ctx, { items }) => {
@@ -55,13 +99,21 @@ export const push = mutation({
                 continue;
             }
 
-            if (existing.updatedAt >= item.updatedAt) continue;
-
-            await ctx.db.patch(existing._id, {
-                updatedAt: item.updatedAt,
-                deletedAt: item.deletedAt,
-                payload: item.payload,
-            });
+            const merged = mergeRows(existing, item);
+            if (!merged) {
+                // 中身が読めないときは、以前どおり行ごとに新しい方
+                if (existing.updatedAt >= item.updatedAt) continue;
+                await ctx.db.patch(existing._id, {
+                    updatedAt: item.updatedAt,
+                    deletedAt: item.deletedAt,
+                    payload: item.payload,
+                });
+                continue;
+            }
+            if (merged.payload === existing.payload && merged.updatedAt === existing.updatedAt) {
+                continue;
+            }
+            await ctx.db.patch(existing._id, merged);
         }
 
         return { ok: true };

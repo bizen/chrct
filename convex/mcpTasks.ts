@@ -2,6 +2,7 @@ import { internalMutation, internalQuery } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { coerceStamps, restamp, type Stamps } from "../src/lib/itemMerge";
 
 /*
  * MCP から人間のタスクリストを読み書きする。
@@ -34,10 +35,16 @@ interface StoredItem {
     createdAt: number;
     updatedAt: number;
     deletedAt?: number;
+    stamps?: Stamps;
 }
 
 function parseRow(row: SyncRow): StoredItem | null {
     if (row.deletedAt) return null;
+    return parsePayload(row);
+}
+
+/** 消えた行も読む。書き込み前の姿と比べて、変わった欄にだけ時刻を打つため */
+function parsePayload(row: SyncRow): StoredItem | null {
     try {
         const raw = JSON.parse(row.payload) as Partial<StoredItem>;
         if (typeof raw.text !== "string") return null;
@@ -51,6 +58,8 @@ function parseRow(row: SyncRow): StoredItem | null {
             done: raw.done === true,
             createdAt: typeof raw.createdAt === "number" ? raw.createdAt : row.updatedAt,
             updatedAt: row.updatedAt,
+            deletedAt: row.deletedAt,
+            stamps: coerceStamps(raw.stamps),
         };
     } catch {
         return null;
@@ -82,21 +91,34 @@ function nextOrder(items: StoredItem[], parentId: string | null): number {
     return siblings.length === 0 ? 0 : siblings[siblings.length - 1].order + 1;
 }
 
+/**
+ * 1件書く。いまの行と比べて変わった欄にだけ item.updatedAt を打つ。
+ * 同期は欄ごとに突き合わせるので（src/lib/itemMerge.ts）、触っていない欄の
+ * 時刻まで進めると、ブラウザで同時に直したものを上書きしてしまう。
+ */
 async function writeItem(ctx: MutationCtx, userId: string, item: StoredItem): Promise<void> {
-    const payload = JSON.stringify(item);
     const existing = await ctx.db
         .query("syncItems")
         .withIndex("by_user_item", (q) => q.eq("userId", userId).eq("itemId", item.id))
         .unique();
 
+    const prev = existing ? (parsePayload(existing) ?? undefined) : undefined;
+    const next = restamp(prev, item, item.updatedAt);
+    const payload = JSON.stringify(next);
+
     if (existing) {
-        await ctx.db.patch(existing._id, { updatedAt: item.updatedAt, deletedAt: undefined, payload });
+        await ctx.db.patch(existing._id, {
+            updatedAt: next.updatedAt,
+            deletedAt: next.deletedAt,
+            payload,
+        });
         return;
     }
     await ctx.db.insert("syncItems", {
         userId,
         itemId: item.id,
-        updatedAt: item.updatedAt,
+        updatedAt: next.updatedAt,
+        deletedAt: next.deletedAt,
         payload,
     });
 }
@@ -599,17 +621,8 @@ export const remove = internalMutation({
         let stamp = stampAfter(items);
         const doomed = subtreeOf(items, target.id);
         for (const item of doomed) {
-            const row = await ctx.db
-                .query("syncItems")
-                .withIndex("by_user_item", (q) => q.eq("userId", userId).eq("itemId", item.id))
-                .unique();
-            if (!row) continue;
             const updatedAt = stamp++;
-            await ctx.db.patch(row._id, {
-                updatedAt,
-                deletedAt: updatedAt,
-                payload: JSON.stringify({ ...item, updatedAt, deletedAt: updatedAt }),
-            });
+            await writeItem(ctx, userId, { ...item, deletedAt: updatedAt, updatedAt });
         }
         return { id: target.id, text: target.text, deleted: doomed.length };
     },

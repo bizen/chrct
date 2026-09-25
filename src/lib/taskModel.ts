@@ -5,6 +5,8 @@
  * - 並び順は兄弟内の fractional order。同期しても衝突しにくい。
  */
 
+import type { Stamps } from './itemMerge';
+
 export const MAX_DEPTH = 4;
 
 export type TaskKind = 'main' | 'tanomi';
@@ -58,6 +60,8 @@ export interface Item {
   updatedAt: number;
   /** 論理削除（同期のトゥームストーン） */
   deletedAt?: number;
+  /** 欄ごとの変更時刻。同期で欄ごとに突き合わせる（src/lib/itemMerge.ts） */
+  stamps?: Stamps;
 }
 
 export type ItemMap = Record<string, Item>;

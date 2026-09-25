@@ -91,14 +91,13 @@ function SyncBridgeInner() {
   // リモート → ローカル
   useEffect(() => {
     if (!enabled || !userId || !remote) return;
-    taskStore.mergeRemote(remote);
+    const { clean, ahead } = taskStore.mergeRemote(remote);
 
+    // 合わせた結果がサーバと同じものだけ送信済みにする。
+    // こちらの方が新しい欄が残ったものは、次の push で必ず送る
     const map = syncMapRef.current;
-    const current = taskStore.getState().items;
-    for (const row of remote) {
-      const local = current[row.itemId];
-      if (local && local.updatedAt <= row.updatedAt) map[row.itemId] = local.updatedAt;
-    }
+    for (const item of clean) map[item.id] = item.updatedAt;
+    for (const id of ahead) delete map[id];
     saveSyncMap(userId, map);
   }, [enabled, userId, remote]);
 

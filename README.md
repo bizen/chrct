@@ -94,8 +94,16 @@ Windows / Linux では `⌘` を Ctrl、`⌥` を Alt に読み替える。
 
 サインインすると `src/components/SyncBridge.tsx` が働く。
 
-- ローカルが正。`updatedAt` の新しい方を採用する last-write-wins
-- サーバ（`convex/sync.ts`）はアイテムの JSON を預かるだけで中身を解釈しない
+- ローカルが正。突き合わせは**欄ごと**に新しい方を採る（`src/lib/itemMerge.ts`）。
+  行ごとに採ると、AI が文言を、人がメモを同時に直したときに片方が黙って消えるため
+- 欄ごとの変更時刻は `stamps` に持つ。一緒に動く欄は組にする（位置は `parentId` + `order`、
+  完了は `done` + `filed`）。`stamps` の無い古い行は、どの欄も `updatedAt` とみなす
+- 時刻は、それまでに見たどの時刻よりも後にする。端末の時計が遅れていても、
+  他の変更を見てから書いた編集が負けないように
+- 同じ規則をブラウザ（`taskStore.mergeRemote`）、サーバの push（`convex/sync.ts`）、
+  MCP の書き込み（`convex/mcpTasks.ts`）の3か所で使う
+- 他の端末や AI の変更で勝った欄は取り消し履歴にも写す。`⌘Z` で自分の編集を
+  戻したときに、AI の変更まで巻き戻さないように
 - 初回サインイン時に、旧スキーマ（`tasks` / `taskListEntries`）のタスクを
   一度だけ新しいツリーへ取り込む（旧「見出し」はそのままラベルになる）
 

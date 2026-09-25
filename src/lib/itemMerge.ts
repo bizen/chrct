@@ -1,0 +1,135 @@
+/**
+ * 同期の突き合わせ。ブラウザ（taskStore）、Convex の push（convex/sync.ts）、
+ * MCP の書き込み（convex/mcpTasks.ts）の3か所が同じ規則で合わせる。
+ *
+ * 行ごとに新しい方を採ると、別々の欄を同時に触ったとき（AI が文言を、
+ * 人がメモを直した、など）に片方が黙って消える。そこで欄ごとに
+ * 「いつ変わったか」を持ち、欄ごとに新しい方を採る。
+ *
+ * 一緒に動く欄はまとめて1つの時刻にする（位置は parentId と order、
+ * 完了は done と filed）。半分だけ採ると、ありえない組み合わせになるため。
+ *
+ * stamps を持たない古い行は、どの欄も updatedAt に変わったものとみなす。
+ * そのときの振る舞いは、以前の「行ごとに新しい方」と同じになる。
+ *
+ * DOM にも Convex にも依存させないこと。両方から読まれる。
+ */
+
+export const FIELD_GROUPS = {
+  type: ['type'],
+  position: ['parentId', 'order'],
+  text: ['text'],
+  note: ['note'],
+  done: ['done', 'filed'],
+  kind: ['kind'],
+  color: ['color'],
+  estimate: ['estimate'],
+  today: ['assignedDate'],
+  deleted: ['deletedAt'],
+} as const;
+
+export type FieldGroup = keyof typeof FIELD_GROUPS;
+export type Stamps = Partial<Record<FieldGroup, number>>;
+
+const GROUPS = Object.keys(FIELD_GROUPS) as FieldGroup[];
+
+interface Stamped {
+  updatedAt: number;
+  stamps?: Stamps;
+}
+
+function field(item: Stamped, key: string): unknown {
+  return (item as unknown as Record<string, unknown>)[key];
+}
+
+function stampOf(item: Stamped, group: FieldGroup): number {
+  return item.stamps?.[group] ?? item.updatedAt;
+}
+
+function sameGroup(a: Stamped, b: Stamped, group: FieldGroup): boolean {
+  return FIELD_GROUPS[group].every((key) => field(a, key) === field(b, key));
+}
+
+/** 時刻が並んだときの決め手。どちらの側で合わせても同じ答えになるようにする */
+function groupKey(item: Stamped, group: FieldGroup): string {
+  return JSON.stringify(FIELD_GROUPS[group].map((key) => field(item, key) ?? null));
+}
+
+export function coerceStamps(raw: unknown): Stamps | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const stamps: Stamps = {};
+  let any = false;
+  for (const group of GROUPS) {
+    const value = (raw as Record<string, unknown>)[group];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      stamps[group] = value;
+      any = true;
+    }
+  }
+  return any ? stamps : undefined;
+}
+
+/**
+ * 変更を書くときに呼ぶ。prev から変わった欄にだけ now を打つ。
+ * prev が無ければ（新しく作ったもの）全部の欄に now。
+ */
+export function restamp<T extends Stamped>(prev: T | undefined, next: T, now: number): T {
+  const stamps: Stamps = {};
+  for (const group of GROUPS) {
+    stamps[group] = prev && sameGroup(prev, next, group) ? stampOf(prev, group) : now;
+  }
+  return { ...next, stamps, updatedAt: now };
+}
+
+/** 欄ごとに新しい方を採る。merge(a, b) と merge(b, a) は同じ中身になる */
+export function mergeItems<T extends Stamped>(a: T, b: T): T {
+  const merged = { ...a } as unknown as Record<string, unknown>;
+  const stamps: Stamps = {};
+
+  for (const group of GROUPS) {
+    const sa = stampOf(a, group);
+    const sb = stampOf(b, group);
+    const takeB = sb > sa || (sb === sa && groupKey(b, group) > groupKey(a, group));
+    stamps[group] = Math.max(sa, sb);
+    if (!takeB) continue;
+    for (const key of FIELD_GROUPS[group]) {
+      const value = field(b, key);
+      if (value === undefined) delete merged[key];
+      else merged[key] = value;
+    }
+  }
+
+  merged.stamps = stamps;
+  merged.updatedAt = Math.max(a.updatedAt, b.updatedAt);
+  return merged as unknown as T;
+}
+
+/** どの欄も同じ中身・同じ時刻か。送り直しが要らないかの判定に使う */
+export function sameStampedState(a: Stamped, b: Stamped): boolean {
+  return GROUPS.every(
+    (group) => stampOf(a, group) === stampOf(b, group) && sameGroup(a, b, group)
+  );
+}
+
+/** from から to で中身か時刻が変わった欄 */
+export function changedGroups(from: Stamped, to: Stamped): FieldGroup[] {
+  return GROUPS.filter(
+    (group) => stampOf(from, group) !== stampOf(to, group) || !sameGroup(from, to, group)
+  );
+}
+
+/** target の指定した欄だけを source のものに差し替える */
+export function withGroups<T extends Stamped>(target: T, source: T, groups: FieldGroup[]): T {
+  const next = { ...target } as unknown as Record<string, unknown>;
+  const stamps: Stamps = { ...target.stamps };
+  for (const group of groups) {
+    for (const key of FIELD_GROUPS[group]) {
+      const value = field(source, key);
+      if (value === undefined) delete next[key];
+      else next[key] = value;
+    }
+    stamps[group] = stampOf(source, group);
+  }
+  next.stamps = stamps;
+  return next as unknown as T;
+}
