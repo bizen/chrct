@@ -133,9 +133,32 @@ function toView(item: StoredItem, label: string | undefined, subtasks: StoredIte
     return view;
 }
 
+/** 見積もりの合計。画面のフッタと同じく、未完了のタスクを親も子も足す */
+function remainingMinutes(items: StoredItem[], roots: StoredItem[]): number {
+    const counted = new Set<string>();
+    let total = 0;
+    for (const root of roots) {
+        for (const item of subtreeOf(items, root.id)) {
+            if (counted.has(item.id)) continue;
+            counted.add(item.id);
+            if (item.type === "task" && !item.done) total += item.estimate ?? 0;
+        }
+    }
+    return total;
+}
+
 export const list = internalQuery({
-    args: { userId: v.string(), includeDone: v.optional(v.boolean()) },
-    handler: async (ctx, { userId, includeDone }) => {
+    args: {
+        userId: v.string(),
+        includeDone: v.optional(v.boolean()),
+        label: v.optional(v.string()),
+        today: v.optional(v.string()),
+    },
+    handler: async (ctx, { userId, includeDone, label, today }) => {
+        if (today && !/^\d{4}-\d{2}-\d{2}$/.test(today)) {
+            throw new ConvexError("today must be YYYY-MM-DD");
+        }
+
         const items = await loadItems(ctx, userId);
         const byId = new Map(items.map((i) => [i.id, i]));
 
@@ -143,24 +166,50 @@ export const list = internalQuery({
             .filter((i) => i.type === "section" && i.text.trim())
             .map((i) => i.text.trim());
 
-        const tasks: TaskView[] = [];
+        const wantedLabel = label?.trim() ? findLabel(items, label) : undefined;
+        if (label?.trim() && !wantedLabel) throw new ConvexError("label not found");
+
+        /** いちばん近いラベル。サブタスクでも所属が分かるように上までたどる */
+        const labelOf = (item: StoredItem): StoredItem | undefined => {
+            let current = item.parentId ? byId.get(item.parentId) : undefined;
+            const seen = new Set<string>();
+            while (current && current.type !== "section" && !seen.has(current.id)) {
+                seen.add(current.id);
+                current = current.parentId ? byId.get(current.parentId) : undefined;
+            }
+            return current?.type === "section" ? current : undefined;
+        };
+
+        const picked: StoredItem[] = [];
         for (const item of items.filter((i) => i.type === "task" && i.text.trim())) {
             const parent = item.parentId ? byId.get(item.parentId) : undefined;
-            // サブタスクは親の下にまとめて出すので、単体では並べない
-            if (parent?.type === "task") continue;
+            if (today) {
+                // today はサブタスクにも付くので、深さによらず拾う
+                if (item.assignedDate !== today) continue;
+            } else if (parent?.type === "task") {
+                // サブタスクは親の下にまとめて出すので、単体では並べない
+                continue;
+            }
             if (!includeDone && item.done) continue;
-
-            const subtasks = childrenOf(items, item.id).filter((s) => s.text.trim());
-            tasks.push(
-                toView(
-                    item,
-                    parent?.type === "section" ? parent.text.trim() : undefined,
-                    includeDone ? subtasks : subtasks.filter((s) => !s.done)
-                )
-            );
+            if (wantedLabel && labelOf(item)?.id !== wantedLabel.id) continue;
+            picked.push(item);
         }
 
-        return { labels: [...new Set(labels)], tasks };
+        const tasks = picked.map((item) => {
+            const subtasks = childrenOf(items, item.id).filter((s) => s.text.trim());
+            return toView(
+                item,
+                labelOf(item)?.text.trim(),
+                includeDone ? subtasks : subtasks.filter((s) => !s.done)
+            );
+        });
+
+        if (!today) return { labels: [...new Set(labels)], tasks };
+        return {
+            labels: [...new Set(labels)],
+            tasks,
+            today_remaining_minutes: remainingMinutes(items, picked),
+        };
     },
 });
 
@@ -516,5 +565,52 @@ export const addMany = internalMutation({
         }
 
         return { added, label_not_found: labelNotFound };
+    },
+});
+
+/** 自分と、その下にあるものすべて */
+function subtreeOf(items: StoredItem[], id: string): StoredItem[] {
+    const result: StoredItem[] = [];
+    const stack = [id];
+    const seen = new Set<string>();
+    const byId = new Map(items.map((i) => [i.id, i]));
+    while (stack.length > 0) {
+        const current = stack.pop()!;
+        if (seen.has(current)) continue;
+        seen.add(current);
+        const item = byId.get(current);
+        if (item) result.push(item);
+        for (const child of childrenOf(items, current)) stack.push(child.id);
+    }
+    return result;
+}
+
+/**
+ * タスクを消す。サブタスクも一緒に。クライアントの remove と揃える。
+ * 行は残して deletedAt を打つ。消えたことを他の端末の pull に伝えるため。
+ */
+export const remove = internalMutation({
+    args: { userId: v.string(), taskId: v.string() },
+    handler: async (ctx, { userId, taskId }) => {
+        const items = await loadItems(ctx, userId);
+        const target = items.find((i) => i.id === taskId);
+        if (!target || target.type !== "task") throw new ConvexError("task not found");
+
+        let stamp = stampAfter(items);
+        const doomed = subtreeOf(items, target.id);
+        for (const item of doomed) {
+            const row = await ctx.db
+                .query("syncItems")
+                .withIndex("by_user_item", (q) => q.eq("userId", userId).eq("itemId", item.id))
+                .unique();
+            if (!row) continue;
+            const updatedAt = stamp++;
+            await ctx.db.patch(row._id, {
+                updatedAt,
+                deletedAt: updatedAt,
+                payload: JSON.stringify({ ...item, updatedAt, deletedAt: updatedAt }),
+            });
+        }
+        return { id: target.id, text: target.text, deleted: doomed.length };
     },
 });

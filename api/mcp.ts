@@ -88,13 +88,21 @@ const handler = createMcpHandler(
       {
         title: "Read the user's task list",
         description:
-          "Read the user's task list: what is still open, which labels exist, and the ids you need for the other tools. Unfinished tasks only unless include_done is set.",
+          "Read the user's task list: what is still open, which labels exist, and the ids you need for the other tools. Unfinished tasks only unless include_done is set. Narrow it with label, or with today to get just the user's today list and the total of its remaining estimates.",
         inputSchema: z.object({
           include_done: z.boolean().optional().describe('Also return finished tasks'),
+          label: z.string().optional().describe('Only tasks under this label (a name from list_tasks)'),
+          today: z
+            .string()
+            .optional()
+            .describe(
+              "The user's local date as YYYY-MM-DD. Only tasks in today, plus today_remaining_minutes"
+            ),
         }),
         annotations: { readOnlyHint: true },
       },
-      ({ include_done }, ctx) => call(ctx, 'list', { includeDone: include_done })
+      ({ include_done, label, today }, ctx) =>
+        call(ctx, 'list', { includeDone: include_done, label, today })
     );
 
     server.registerTool(
@@ -176,6 +184,20 @@ const handler = createMcpHandler(
         }),
       },
       ({ task_id, done }, ctx) => call(ctx, 'complete', { taskId: task_id, done })
+    );
+
+    server.registerTool(
+      'delete_task',
+      {
+        title: 'Delete a task',
+        description:
+          'Delete a task from the list, together with its subtasks. Only when the user asked for it to be deleted — a finished task is checked off with complete_task, not deleted.',
+        inputSchema: z.object({
+          task_id: z.string(),
+        }),
+        annotations: { destructiveHint: true },
+      },
+      ({ task_id }, ctx) => call(ctx, 'delete', { taskId: task_id })
     );
 
     server.registerTool(

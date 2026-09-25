@@ -200,17 +200,20 @@ export function TasksPage() {
     for (const row of allRows) {
       const { item } = row;
       if (item.type !== 'task') continue;
-      if (!item.done) {
-        remaining += 1;
-        remainingMinutes += item.estimate ?? 0;
-        continue;
-      }
+      if (!item.done) continue;
       completed += 1;
       const parent = item.parentId ? items[item.parentId] : undefined;
       if (!item.filed && (!parent || parent.type === 'section')) fileable += 1;
     }
+    // 残りと合計時間は、いま見ている表示の分だけ数える（today なら today の合計）
+    for (const row of view === 'today' ? todayRows : allRows) {
+      const { item } = row;
+      if (item.type !== 'task' || item.done) continue;
+      remaining += 1;
+      remainingMinutes += item.estimate ?? 0;
+    }
     return { remaining, remainingMinutes, completed, fileable };
-  }, [allRows, items]);
+  }, [allRows, todayRows, view, items]);
 
   const applyFocus = useCallback((pending: PendingFocus): boolean => {
     const map = pending.target === 'note' ? noteRefs.current : titleRefs.current;
@@ -789,7 +792,7 @@ export function TasksPage() {
             {stats.remainingMinutes > 0 ? (
               <>
                 {' · '}
-                <b title="残っているタスクの作業想定時間の合計">
+                <b title={view === 'today' ? 'today に残っているタスクの作業想定時間の合計' : '残っているタスクの作業想定時間の合計'}>
                   {formatEstimate(stats.remainingMinutes)}
                 </b>
               </>

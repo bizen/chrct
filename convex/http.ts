@@ -82,6 +82,8 @@ http.route({
         ctx.runQuery(internal.mcpTasks.list, {
             userId: body.userId as string,
             includeDone: body.includeDone === true,
+            label: typeof body.label === "string" ? body.label : undefined,
+            today: typeof body.today === "string" ? body.today : undefined,
         })
     ),
 });
@@ -180,6 +182,17 @@ http.route({
             userId: body.userId as string,
             label: String(body.label ?? ""),
             intoLabel: typeof body.intoLabel === "string" ? body.intoLabel : undefined,
+        })
+    ),
+});
+
+http.route({
+    path: "/mcp/delete",
+    method: "POST",
+    handler: route((ctx, body) =>
+        ctx.runMutation(internal.mcpTasks.remove, {
+            userId: body.userId as string,
+            taskId: String(body.taskId ?? ""),
         })
     ),
 });
